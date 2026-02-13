@@ -1,4 +1,4 @@
-﻿package handlers
+package handlers
 
 import (
 	"net/http"
@@ -19,6 +19,7 @@ type orderRequest struct {
 	Count      int     `json:"count" binding:"required"`
 	Price      float64 `json:"price" binding:"required"`
 	Prepayment float64 `json:"prepayment" binding:"required"`
+	Comment    string  `json:"comment"`
 	Status     string  `json:"status" binding:"required"`
 }
 
@@ -40,6 +41,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		Count:      req.Count,
 		Price:      req.Price,
 		Prepayment: req.Prepayment,
+		Comment:    req.Comment,
 		Status:     req.Status,
 	}
 
@@ -100,6 +102,7 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 	order.Count = req.Count
 	order.Price = req.Price
 	order.Prepayment = req.Prepayment
+	order.Comment = req.Comment
 	order.Status = req.Status
 
 	if err := database.DB.Save(&order).Error; err != nil {

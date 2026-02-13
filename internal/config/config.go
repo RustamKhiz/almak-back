@@ -18,7 +18,12 @@ type Config struct {
 }
 
 func LoadConfig() (Config, error) {
-	_ = godotenv.Load()
+	wd, _ := os.Getwd()
+
+	// Пытаемся явно загрузить .env из текущей директории
+	if err := godotenv.Overload(wd + string(os.PathSeparator) + ".env"); err != nil {
+		return Config{}, fmt.Errorf("не удалось загрузить .env из %s: %w", wd, err)
+	}
 
 	cfg := Config{
 		Port:      getEnv("PORT", "8080"),

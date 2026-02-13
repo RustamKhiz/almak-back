@@ -1,4 +1,4 @@
-﻿package models
+package models
 
 import "time"
 
@@ -10,6 +10,7 @@ type Order struct {
 	Count      int       `json:"count" gorm:"not null"`
 	Price      float64   `json:"price" gorm:"not null"`
 	Prepayment float64   `json:"prepayment" gorm:"not null"`
+	Comment    string    `json:"comment"`
 	Status     string    `json:"status" gorm:"not null"`
 	CreatedAt  time.Time `json:"created_at"`
 }
