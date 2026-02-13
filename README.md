@@ -1,162 +1,119 @@
 ﻿# almalak-back
 
-Go backend сервис для проекта Almalak.
+Production-ready REST API backend на Go для управления заказами.
 
-## Стек
-- Go 1.22+
+## Stack
+- Go
+- Gin
+- GORM
 - PostgreSQL
-- Docker / Docker Compose (опционально)
-- golang-migrate (для миграций, если используется)
+- JWT (24 часа)
+- bcrypt
+- .env через `godotenv`
 
-## Быстрый старт
+## Структура
+```text
+cmd/
+  main.go
 
-### 1. Клонирование и переход в проект
-```bash
-git clone <repo-url>
-cd almalak-back
+internal/
+  config/
+    config.go
+  database/
+    database.go
+  models/
+    user.go
+    order.go
+  handlers/
+    auth_handler.go
+    order_handler.go
+  middleware/
+    auth_middleware.go
+  routes/
+    routes.go
+
+.env
+go.mod
+README.md
 ```
 
-### 2. Настройка окружения
-Создайте файл `.env` (или скопируйте из `.env.example`, если он появится позже):
-
-```env
-APP_ENV=development
-APP_PORT=8080
-APP_HOST=0.0.0.0
-
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_NAME=almalak
-DB_SSLMODE=disable
-
-JWT_SECRET=change_me
-JWT_TTL=24h
-```
-
-### 3. Установка зависимостей
+## Запуск локально
+1. Установите зависимости:
 ```bash
 go mod tidy
 ```
 
-### 4. Запуск приложения
+2. Создайте базу данных PostgreSQL:
+```sql
+CREATE DATABASE orders_db;
+```
+
+3. Настройте `.env`:
+```env
+PORT=8080
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_NAME=orders_db
+JWT_SECRET=super_secret_key
+```
+
+4. Запустите сервер:
 ```bash
-go run ./cmd/server
+go run cmd/main.go
 ```
 
-Если у вас другой entrypoint, замените путь `./cmd/server` на актуальный.
-
-## Сборка
-```bash
-go build -o bin/app ./cmd/server
-```
-
-## Тесты
-```bash
-go test ./...
-```
-
-## Линтинг (опционально)
-```bash
-golangci-lint run
-```
-
-## Docker
-
-### Запуск через Docker Compose
-```bash
-docker compose up --build
-```
-
-### Ручная сборка образа
-```bash
-docker build -t almalak-back .
-docker run --env-file .env -p 8080:8080 almalak-back
-```
-
-## Миграции базы данных
-Если в проекте используются SQL-миграции:
-
-```bash
-migrate -path ./migrations -database "postgres://postgres:postgres@localhost:5432/almalak?sslmode=disable" up
-```
-
-Откат на 1 шаг:
-
-```bash
-migrate -path ./migrations -database "postgres://postgres:postgres@localhost:5432/almalak?sslmode=disable" down 1
-```
-
-## Переменные окружения
-
-| Переменная | Описание | Пример |
-|---|---|---|
-| `APP_ENV` | Режим окружения | `development` |
-| `APP_HOST` | Хост приложения | `0.0.0.0` |
-| `APP_PORT` | Порт приложения | `8080` |
-| `DB_HOST` | Хост БД | `localhost` |
-| `DB_PORT` | Порт БД | `5432` |
-| `DB_USER` | Пользователь БД | `postgres` |
-| `DB_PASSWORD` | Пароль БД | `postgres` |
-| `DB_NAME` | Имя базы | `almalak` |
-| `DB_SSLMODE` | SSL режим БД | `disable` |
-| `JWT_SECRET` | Секрет подписи JWT | `change_me` |
-| `JWT_TTL` | Время жизни JWT | `24h` |
-
-## Рекомендуемая структура проекта
-```text
-.
-├─ cmd/
-│  └─ server/
-│     └─ main.go
-├─ internal/
-│  ├─ config/
-│  ├─ handler/
-│  ├─ service/
-│  ├─ repository/
-│  └─ model/
-├─ migrations/
-├─ pkg/
-├─ .env
-├─ .gitignore
-├─ go.mod
-└─ README.md
-```
-
-## API
-
-### Healthcheck
+## Аутентификация
+- Регистрации нет.
+- При первом запуске автоматически создаётся пользователь:
+  - `login: admin`
+  - `password: admin`
+- Логин:
 ```http
-GET /health
-```
+POST /login
+Content-Type: application/json
 
-Пример ответа:
-
-```json
 {
-  "status": "ok"
+  "login": "admin",
+  "password": "admin"
 }
 ```
 
-## Полезные команды
-```bash
-# Форматирование
-go fmt ./...
-
-# Проверка зависимостей
-go mod verify
-
-# Очистка кеша сборки
-go clean -cache
+Ответ:
+```json
+{
+  "token": "<JWT_TOKEN>"
+}
 ```
 
-## Roadmap
-- [ ] Добавить `.env.example`
-- [ ] Добавить `Dockerfile` и `docker-compose.yml`
-- [ ] Добавить миграции в `migrations/`
-- [ ] Добавить OpenAPI/Swagger спецификацию
-- [ ] Добавить CI (lint + test)
+## Order model
+- `id` (uint, primary key)
+- `customer` (string)
+- `phone` (string)
+- `date` (string)
+- `count` (int)
+- `price` (float64)
+- `prepayment` (float64)
+- `status` (string)
+- `created_at` (auto)
 
-## Лицензия
-Укажите лицензию проекта (например, MIT).
+## Защищённые эндпоинты
+Требуют заголовок:
+```http
+Authorization: Bearer <token>
+```
+
+- `POST /orders`
+- `GET /orders`
+- `GET /orders/:id`
+- `PUT /orders/:id`
+- `DELETE /orders/:id`
+
+## CORS
+Разрешён origin:
+- `http://localhost:4200`
+
+Разрешённые заголовки:
+- `Authorization`
+- `Content-Type`
