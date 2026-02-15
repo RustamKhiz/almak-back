@@ -12,5 +12,6 @@ type Order struct {
 	Prepayment float64   `json:"prepayment" gorm:"not null"`
 	Comment    string    `json:"comment"`
 	Status     string    `json:"status" gorm:"not null"`
+	Doors      []Door    `json:"orders,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
 	CreatedAt  time.Time `json:"created_at"`
 }

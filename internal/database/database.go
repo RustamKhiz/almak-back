@@ -29,7 +29,7 @@ func Connect(cfg config.Config) error {
 		return err
 	}
 
-	if err = db.AutoMigrate(&models.User{}, &models.Order{}); err != nil {
+	if err = db.AutoMigrate(&models.User{}, &models.Order{}, &models.Door{}); err != nil {
 		return err
 	}
 
