@@ -3,6 +3,7 @@
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -15,6 +16,7 @@ type Config struct {
 	DBPass    string
 	DBName    string
 	JWTSecret string
+	FrontendOrigins []string
 }
 
 func LoadConfig() (Config, error) {
@@ -33,6 +35,7 @@ func LoadConfig() (Config, error) {
 		DBPass:    os.Getenv("DB_PASSWORD"),
 		DBName:    os.Getenv("DB_NAME"),
 		JWTSecret: os.Getenv("JWT_SECRET"),
+		FrontendOrigins: getFrontendOrigins(),
 	}
 
 	if err := validate(cfg); err != nil {
@@ -40,6 +43,31 @@ func LoadConfig() (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func getFrontendOrigins() []string {
+	raw := os.Getenv("FRONTEND_ORIGINS")
+	if strings.TrimSpace(raw) == "" {
+		return []string{
+			"http://localhost:4200",
+			"http://109.196.100.71",
+		}
+	}
+
+	parts := strings.Split(raw, ",")
+	origins := make([]string, 0, len(parts))
+	for _, part := range parts {
+		origin := strings.TrimSpace(part)
+		if origin != "" {
+			origins = append(origins, origin)
+		}
+	}
+
+	if len(origins) == 0 {
+		return []string{"http://localhost:4200"}
+	}
+
+	return origins
 }
 
 func getEnv(key, fallback string) string {
