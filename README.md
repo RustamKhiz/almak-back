@@ -1,6 +1,7 @@
 ﻿# almalak-back
 
 Production-ready REST API backend на Go для управления заказами.
+http://109.196.100.71/auth
 
 ## Stack
 - Go
