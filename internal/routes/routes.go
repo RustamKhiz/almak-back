@@ -25,11 +25,21 @@ func SetupRouter(cfg config.Config) *gin.Engine {
 
 	authHandler := handlers.NewAuthHandler(cfg)
 	orderHandler := handlers.NewOrderHandler()
+	registerRoutes(router.Group("/api"), cfg, authHandler, orderHandler)
+	registerRoutes(router.Group("/"), cfg, authHandler, orderHandler)
 
-	api := router.Group("/api")
-	api.POST("/login", authHandler.Login)
+	return router
+}
 
-	protected := api.Group("/")
+func registerRoutes(
+	group *gin.RouterGroup,
+	cfg config.Config,
+	authHandler *handlers.AuthHandler,
+	orderHandler *handlers.OrderHandler,
+) {
+	group.POST("/login", authHandler.Login)
+
+	protected := group.Group("/")
 	protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
 	{
 		protected.POST("/orders", orderHandler.CreateOrder)
@@ -38,6 +48,4 @@ func SetupRouter(cfg config.Config) *gin.Engine {
 		protected.PUT("/orders/:id", orderHandler.UpdateOrder)
 		protected.DELETE("/orders/:id", orderHandler.DeleteOrder)
 	}
-
-	return router
 }
