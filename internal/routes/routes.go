@@ -1,4 +1,4 @@
-﻿package routes
+package routes
 
 import (
 	"time"
@@ -26,9 +26,10 @@ func SetupRouter(cfg config.Config) *gin.Engine {
 	authHandler := handlers.NewAuthHandler(cfg)
 	orderHandler := handlers.NewOrderHandler()
 
-	router.POST("/login", authHandler.Login)
+	api := router.Group("/api")
+	api.POST("/login", authHandler.Login)
 
-	protected := router.Group("/")
+	protected := api.Group("/")
 	protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
 	{
 		protected.POST("/orders", orderHandler.CreateOrder)

@@ -33,7 +33,7 @@ func Connect(cfg config.Config) error {
 		return err
 	}
 
-	if err = ensureDefaultAdmin(db); err != nil {
+	if err = ensureDefaultUser(db); err != nil {
 		return err
 	}
 
@@ -41,27 +41,34 @@ func Connect(cfg config.Config) error {
 	return nil
 }
 
-// ensureDefaultAdmin создаёт пользователя admin/admin при первом запуске.
-func ensureDefaultAdmin(db *gorm.DB) error {
+// ensureDefaultUser удаляет legacy-пользователя admin и гарантирует пользователя almak/almak05.
+func ensureDefaultUser(db *gorm.DB) error {
+	if err := db.Where("login = ?", "admin").Delete(&models.User{}).Error; err != nil {
+		return err
+	}
+
+	const defaultLogin = "almak"
+	const defaultPassword = "almak05"
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(defaultPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
 	var user models.User
-	err := db.Where("login = ?", "admin").First(&user).Error
+	err = db.Where("login = ?", defaultLogin).First(&user).Error
 	if err == nil {
-		return nil
+		return db.Model(&user).Update("password", string(hash)).Error
 	}
 
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
-	if err != nil {
-		return err
-	}
-
-	admin := models.User{
-		Login:    "admin",
+	defaultUser := models.User{
+		Login:    defaultLogin,
 		Password: string(hash),
 	}
 
-	return db.Create(&admin).Error
+	return db.Create(&defaultUser).Error
 }
