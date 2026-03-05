@@ -35,6 +35,10 @@ type orderRequest struct {
 	Orders     []doorRequest `json:"orders" binding:"required"`
 }
 
+type orderStatusRequest struct {
+	Status int `json:"status" binding:"required"`
+}
+
 func NewOrderHandler() *OrderHandler {
 	return &OrderHandler{}
 }
@@ -190,6 +194,47 @@ func (h *OrderHandler) DeleteOrder(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "заказ удалён"})
 }
 
+func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+
+	var req orderStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "некорректное тело запроса"})
+		return
+	}
+
+	status, statusOk := statusCodeToValue(req.Status)
+	if !statusOk {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "некорректный статус"})
+		return
+	}
+
+	var order models.Order
+	if err := database.DB.First(&order, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "заказ не найден"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "не удалось обновить статус заказа"})
+		return
+	}
+
+	if err := database.DB.Model(&order).Update("status", status).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "не удалось обновить статус заказа"})
+		return
+	}
+
+	if err := database.DB.Preload("Doors").First(&order, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "заказ не найден"})
+		return
+	}
+
+	c.JSON(http.StatusOK, order)
+}
+
 func parseID(c *gin.Context) (uint, bool) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 64)
@@ -208,6 +253,19 @@ func aggregateDoors(doors []doorRequest) (int, float64) {
 		totalPrice += door.Price * float64(door.Count)
 	}
 	return totalCount, totalPrice
+}
+
+func statusCodeToValue(status int) (string, bool) {
+	switch status {
+	case 1:
+		return "accepted", true
+	case 2:
+		return "progress", true
+	case 3:
+		return "completed", true
+	default:
+		return "", false
+	}
 }
 
 func mapDoorsForCreate(doors []doorRequest) []models.Door {
