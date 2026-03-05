@@ -53,12 +53,13 @@ jobs:
           SSH_PORT: ${{ secrets.SSH_PORT }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          ssh -tt -p "${SSH_PORT:-22}" "${SSH_USER}@${SSH_HOST}" "
+          ssh -p "${SSH_PORT:-22}" "${SSH_USER}@${SSH_HOST}" DEPLOY_PATH="${DEPLOY_PATH}" <<EOF
             set -e
-            cd '${DEPLOY_PATH}'
+
+            cd \$DEPLOY_PATH
             chmod +x app.new
             mv -f app.new app
 
             sudo -n /usr/bin/systemctl restart almak-back
             sudo -n /usr/bin/systemctl status almak-back --no-pager -l
-          "
+          EOF
