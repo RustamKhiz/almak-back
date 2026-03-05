@@ -59,6 +59,6 @@ jobs:
             chmod +x app.new
             mv -f app.new app
 
-            sudo systemctl restart almak-back
-            sudo systemctl status almak-back --no-pager -l
+            sudo -n /usr/bin/systemctl restart almak-back
+            sudo -n /usr/bin/systemctl status almak-back --no-pager -l
           "
