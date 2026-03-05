@@ -55,6 +55,12 @@ jobs:
         run: |
           ssh -p "${SSH_PORT:-22}" "${SSH_USER}@${SSH_HOST}" "
             set -e
+            echo '--- WHOAMI ---'
+            whoami
+            id
+            echo '--- SUDO -L ---'
+            sudo -l
+
             cd '${DEPLOY_PATH}'
             chmod +x app.new
             mv -f app.new app
