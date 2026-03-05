@@ -17,6 +17,7 @@ func SetupRouter(cfg config.Config) *gin.Engine {
 
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     cfg.FrontendOrigins,
+		AllowWildcard:    true,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Authorization", "Content-Type"},
 		AllowCredentials: true,
