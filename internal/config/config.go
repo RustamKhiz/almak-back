@@ -1,40 +1,48 @@
 ﻿package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Port      string
-	DBHost    string
-	DBPort    string
-	DBUser    string
-	DBPass    string
-	DBName    string
-	JWTSecret string
+	Port            string
+	DBHost          string
+	DBPort          string
+	DBUser          string
+	DBPass          string
+	DBName          string
+	JWTSecret       string
 	FrontendOrigins []string
 }
 
 func LoadConfig() (Config, error) {
-	wd, _ := os.Getwd()
+	wd, err := os.Getwd()
+	if err == nil {
+		envPath := filepath.Join(wd, ".env")
 
-	// Пытаемся явно загрузить .env из текущей директории
-	if err := godotenv.Overload(wd + string(os.PathSeparator) + ".env"); err != nil {
-		return Config{}, fmt.Errorf("не удалось загрузить .env из %s: %w", wd, err)
+		if _, statErr := os.Stat(envPath); statErr == nil {
+			if loadErr := godotenv.Overload(envPath); loadErr != nil {
+				return Config{}, fmt.Errorf("не удалось загрузить .env из %s: %w", envPath, loadErr)
+			}
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return Config{}, fmt.Errorf("не удалось проверить .env в %s: %w", envPath, statErr)
+		}
 	}
 
 	cfg := Config{
-		Port:      getEnv("PORT", "8080"),
-		DBHost:    os.Getenv("DB_HOST"),
-		DBPort:    os.Getenv("DB_PORT"),
-		DBUser:    os.Getenv("DB_USER"),
-		DBPass:    os.Getenv("DB_PASSWORD"),
-		DBName:    os.Getenv("DB_NAME"),
-		JWTSecret: os.Getenv("JWT_SECRET"),
+		Port:            getEnv("PORT", "8080"),
+		DBHost:          os.Getenv("DB_HOST"),
+		DBPort:          os.Getenv("DB_PORT"),
+		DBUser:          os.Getenv("DB_USER"),
+		DBPass:          os.Getenv("DB_PASSWORD"),
+		DBName:          os.Getenv("DB_NAME"),
+		JWTSecret:       os.Getenv("JWT_SECRET"),
 		FrontendOrigins: getFrontendOrigins(),
 	}
 

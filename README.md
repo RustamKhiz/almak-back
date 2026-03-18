@@ -10,7 +10,6 @@ http://109.196.100.71/auth
 - PostgreSQL
 - JWT (24 часа)
 - bcrypt
-- .env через `godotenv`
 
 ## Структура
 ```text
