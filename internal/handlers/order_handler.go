@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"almak-back/internal/database"
 	"almak-back/internal/models"
@@ -26,13 +27,16 @@ type doorRequest struct {
 }
 
 type orderRequest struct {
-	Customer   string        `json:"customer" binding:"required"`
-	Phone      string        `json:"phone" binding:"required"`
-	Date       string        `json:"date" binding:"required"`
-	Prepayment float64       `json:"prepayment" binding:"required"`
-	Comment    string        `json:"comment"`
-	Status     string        `json:"status" binding:"required"`
-	Orders     []doorRequest `json:"orders" binding:"required"`
+	Customer        string        `json:"customer" binding:"required"`
+	Phone           string        `json:"phone" binding:"required"`
+	Date            string        `json:"date" binding:"required"`
+	Prepayment      float64       `json:"prepayment" binding:"required"`
+	Discount        float64       `json:"discount"`
+	NeedsDelivery   bool          `json:"needsDelivery"`
+	DeliveryAddress string        `json:"deliveryAddress"`
+	Comment         string        `json:"comment"`
+	Status          string        `json:"status" binding:"required"`
+	Orders          []doorRequest `json:"orders" binding:"required"`
 }
 
 type orderStatusRequest struct {
@@ -55,17 +59,24 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	count, price := aggregateDoors(req.Orders)
+	if req.NeedsDelivery && strings.TrimSpace(req.DeliveryAddress) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РЅСѓР¶РЅРѕ СѓРєР°Р·Р°С‚СЊ Р°РґСЂРµСЃ РґРѕСЃС‚Р°РІРєРё"})
+		return
+	}
+
+	price := calculateOrderPrice(req.Orders)
 	order := models.Order{
-		Customer:   req.Customer,
-		Phone:      req.Phone,
-		Date:       req.Date,
-		Count:      count,
-		Price:      price,
-		Prepayment: req.Prepayment,
-		Comment:    req.Comment,
-		Status:     req.Status,
-		Doors:      mapDoorsForCreate(req.Orders),
+		Customer:        req.Customer,
+		Phone:           req.Phone,
+		Date:            req.Date,
+		Price:           price,
+		Prepayment:      req.Prepayment,
+		Discount:        req.Discount,
+		NeedsDelivery:   req.NeedsDelivery,
+		DeliveryAddress: normalizeDeliveryAddress(req.NeedsDelivery, req.DeliveryAddress),
+		Comment:         req.Comment,
+		Status:          req.Status,
+		Doors:           mapDoorsForCreate(req.Orders),
 	}
 
 	if err := database.DB.Create(&order).Error; err != nil {
@@ -123,7 +134,12 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 		return
 	}
 
-	count, price := aggregateDoors(req.Orders)
+	if req.NeedsDelivery && strings.TrimSpace(req.DeliveryAddress) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "РЅСѓР¶РЅРѕ СѓРєР°Р·Р°С‚СЊ Р°РґСЂРµСЃ РґРѕСЃС‚Р°РІРєРё"})
+		return
+	}
+
+	price := calculateOrderPrice(req.Orders)
 	var order models.Order
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.First(&order, id).Error; err != nil {
@@ -133,9 +149,11 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 		order.Customer = req.Customer
 		order.Phone = req.Phone
 		order.Date = req.Date
-		order.Count = count
 		order.Price = price
 		order.Prepayment = req.Prepayment
+		order.Discount = req.Discount
+		order.NeedsDelivery = req.NeedsDelivery
+		order.DeliveryAddress = normalizeDeliveryAddress(req.NeedsDelivery, req.DeliveryAddress)
 		order.Comment = req.Comment
 		order.Status = req.Status
 		if err := tx.Save(&order).Error; err != nil {
@@ -245,14 +263,12 @@ func parseID(c *gin.Context) (uint, bool) {
 	return uint(id), true
 }
 
-func aggregateDoors(doors []doorRequest) (int, float64) {
-	totalCount := 0
+func calculateOrderPrice(doors []doorRequest) float64 {
 	totalPrice := 0.0
 	for _, door := range doors {
-		totalCount += door.Count
 		totalPrice += door.Price * float64(door.Count)
 	}
-	return totalCount, totalPrice
+	return totalPrice
 }
 
 func statusCodeToValue(status int) (string, bool) {
@@ -283,4 +299,11 @@ func mapDoorsForCreate(doors []doorRequest) []models.Door {
 		})
 	}
 	return result
+}
+
+func normalizeDeliveryAddress(needsDelivery bool, address string) string {
+	if !needsDelivery {
+		return ""
+	}
+	return strings.TrimSpace(address)
 }

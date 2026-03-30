@@ -1,4 +1,4 @@
-﻿package database
+package database
 
 import (
 	"errors"
@@ -31,6 +31,12 @@ func Connect(cfg config.Config) error {
 
 	if err = db.AutoMigrate(&models.User{}, &models.Order{}, &models.Door{}); err != nil {
 		return err
+	}
+
+	if db.Migrator().HasColumn(&models.Order{}, "count") {
+		if err = db.Migrator().DropColumn(&models.Order{}, "count"); err != nil {
+			return err
+		}
 	}
 
 	if err = ensureDefaultUser(db); err != nil {
