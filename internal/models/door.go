@@ -11,6 +11,7 @@ type InteriorDoor struct {
 	HasGlass bool    `json:"hasGlass" gorm:"not null;default:false"`
 	LeafType string  `json:"leafType" gorm:"not null"`
 	Count    int     `json:"count" gorm:"not null"`
+	Covering string  `json:"covering" gorm:"not null;default:PVC"`
 	Comment  string  `json:"comment"`
 }
 

@@ -24,6 +24,7 @@ type doorRequest struct {
 	HasGlass bool    `json:"hasGlass"`
 	LeafType string  `json:"leafType" binding:"required"`
 	Count    int     `json:"count" binding:"required"`
+	Covering string  `json:"covering" binding:"required"`
 	Comment  string  `json:"comment"`
 }
 
@@ -61,7 +62,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	}
 
 	if req.NeedsDelivery && strings.TrimSpace(req.DeliveryAddress) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РЅСѓР¶РЅРѕ СѓРєР°Р·Р°С‚СЊ Р°РґСЂРµСЃ РґРѕСЃС‚Р°РІРєРё"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "нужно указать адрес доставки"})
 		return
 	}
 
@@ -136,7 +137,7 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 	}
 
 	if req.NeedsDelivery && strings.TrimSpace(req.DeliveryAddress) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "РЅСѓР¶РЅРѕ СѓРєР°Р·Р°С‚СЊ Р°РґСЂРµСЃ РґРѕСЃС‚Р°РІРєРё"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "нужно указать адрес доставки"})
 		return
 	}
 
@@ -297,6 +298,7 @@ func mapDoorsForCreate(doors []doorRequest) []models.InteriorDoor {
 			HasGlass: door.HasGlass,
 			LeafType: door.LeafType,
 			Count:    door.Count,
+			Covering: door.Covering,
 			Comment:  strings.TrimSpace(door.Comment),
 		})
 	}
