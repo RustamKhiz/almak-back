@@ -16,14 +16,15 @@ import (
 type OrderHandler struct{}
 
 type doorRequest struct {
-	Type     string  `json:"type" binding:"required"`
 	Model    string  `json:"model" binding:"required"`
 	Price    float64 `json:"price" binding:"required"`
-	Color    string  `json:"color" binding:"required"`
 	Width    int     `json:"width" binding:"required"`
+	Width2   *int    `json:"width2"`
 	Height   int     `json:"height" binding:"required"`
+	HasGlass bool    `json:"hasGlass"`
 	LeafType string  `json:"leafType" binding:"required"`
 	Count    int     `json:"count" binding:"required"`
+	Comment  string  `json:"comment"`
 }
 
 type orderRequest struct {
@@ -76,7 +77,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		DeliveryAddress: normalizeDeliveryAddress(req.NeedsDelivery, req.DeliveryAddress),
 		Comment:         req.Comment,
 		Status:          req.Status,
-		Doors:           mapDoorsForCreate(req.Orders),
+		InteriorDoors:   mapDoorsForCreate(req.Orders),
 	}
 
 	if err := database.DB.Create(&order).Error; err != nil {
@@ -84,7 +85,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Preload("Doors").First(&order, order.ID).Error; err != nil {
+	if err := database.DB.Preload("InteriorDoors").First(&order, order.ID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "не удалось получить созданный заказ"})
 		return
 	}
@@ -109,7 +110,7 @@ func (h *OrderHandler) GetOrderByID(c *gin.Context) {
 	}
 
 	var order models.Order
-	if err := database.DB.Preload("Doors").First(&order, id).Error; err != nil {
+	if err := database.DB.Preload("InteriorDoors").First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "заказ не найден"})
 		return
 	}
@@ -160,7 +161,7 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 			return err
 		}
 
-		if err := tx.Where("order_id = ?", order.ID).Delete(&models.Door{}).Error; err != nil {
+		if err := tx.Where("order_id = ?", order.ID).Delete(&models.InteriorDoor{}).Error; err != nil {
 			return err
 		}
 
@@ -184,7 +185,7 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Preload("Doors").First(&order, id).Error; err != nil {
+	if err := database.DB.Preload("InteriorDoors").First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "заказ не найден"})
 		return
 	}
@@ -245,7 +246,7 @@ func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Preload("Doors").First(&order, id).Error; err != nil {
+	if err := database.DB.Preload("InteriorDoors").First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "заказ не найден"})
 		return
 	}
@@ -284,18 +285,19 @@ func statusCodeToValue(status int) (string, bool) {
 	}
 }
 
-func mapDoorsForCreate(doors []doorRequest) []models.Door {
-	result := make([]models.Door, 0, len(doors))
+func mapDoorsForCreate(doors []doorRequest) []models.InteriorDoor {
+	result := make([]models.InteriorDoor, 0, len(doors))
 	for _, door := range doors {
-		result = append(result, models.Door{
-			Type:     door.Type,
+		result = append(result, models.InteriorDoor{
 			Model:    door.Model,
 			Price:    door.Price,
-			Color:    door.Color,
 			Width:    door.Width,
+			Width2:   door.Width2,
 			Height:   door.Height,
+			HasGlass: door.HasGlass,
 			LeafType: door.LeafType,
 			Count:    door.Count,
+			Comment:  strings.TrimSpace(door.Comment),
 		})
 	}
 	return result

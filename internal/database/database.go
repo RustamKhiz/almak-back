@@ -29,12 +29,30 @@ func Connect(cfg config.Config) error {
 		return err
 	}
 
-	if err = db.AutoMigrate(&models.User{}, &models.Order{}, &models.Door{}); err != nil {
+	if db.Migrator().HasTable("doors") && !db.Migrator().HasTable("interior_doors") {
+		if err = db.Migrator().RenameTable("doors", "interior_doors"); err != nil {
+			return err
+		}
+	}
+
+	if err = db.AutoMigrate(&models.User{}, &models.Order{}, &models.InteriorDoor{}); err != nil {
 		return err
 	}
 
 	if db.Migrator().HasColumn(&models.Order{}, "count") {
 		if err = db.Migrator().DropColumn(&models.Order{}, "count"); err != nil {
+			return err
+		}
+	}
+
+	if db.Migrator().HasColumn(&models.InteriorDoor{}, "type") {
+		if err = db.Migrator().DropColumn(&models.InteriorDoor{}, "type"); err != nil {
+			return err
+		}
+	}
+
+	if db.Migrator().HasColumn(&models.InteriorDoor{}, "color") {
+		if err = db.Migrator().DropColumn(&models.InteriorDoor{}, "color"); err != nil {
 			return err
 		}
 	}
