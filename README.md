@@ -1,54 +1,76 @@
-﻿# almalak-back
+# Almak Backend
 
-Production-ready REST API backend на Go для управления заказами.
-http://5.42.120.239/auth
+Go REST API для авторизации и управления заказами. Бэкенд хранит заказ целиком: шапку заказа, межкомнатные двери, входные двери и статус выполнения.
 
-## Stack
-- Go
+Этот README задуман как техническая памятка. Его цель не просто перечислить файлы, а объяснить, как реально проходит запрос и что происходит при создании или обновлении заказа.
+
+## Что делает бэк
+
+Сервер отвечает за:
+
+1. Загрузку конфигурации из `.env`.
+2. Подключение к PostgreSQL и автоприменение миграций через GORM.
+3. Создание дефолтного пользователя для входа.
+4. Выдачу JWT-токена.
+5. CRUD по заказам.
+6. Валидацию состава заказа и серверный пересчет итоговой суммы.
+
+## Стек
+
+- Go 1.22
 - Gin
 - GORM
 - PostgreSQL
-- JWT (24 часа)
+- JWT
 - bcrypt
 
-## Структура
+## Структура проекта
+
 ```text
 cmd/
-  main.go
+  main.go                  # запуск HTTP-сервера
 
 internal/
   config/
-    config.go
+    config.go              # загрузка и валидация env
   database/
-    database.go
-  models/
-    user.go
-    order.go
+    database.go            # подключение к БД, миграции, дефолтный пользователь
   handlers/
-    auth_handler.go
-    order_handler.go
+    auth_handler.go        # логин и выпуск JWT
+    order_handler.go       # создание/чтение/обновление/удаление заказов
   middleware/
-    auth_middleware.go
+    auth_middleware.go     # проверка Bearer token
+  models/
+    user.go                # пользователь
+    order.go               # основная таблица заказа
+    door.go                # таблицы interior_doors и entrance_doors
   routes/
-    routes.go
-
-.env
-go.mod
-README.md
+    routes.go              # маршруты и CORS
 ```
 
-## Запуск локально
-1. Установите зависимости:
-```bash
-go mod tidy
-```
+## Как поднимается приложение
 
-2. Создайте базу данных PostgreSQL:
-```sql
-CREATE DATABASE orders_db;
-```
+### 1. Старт процесса
 
-3. Настройте `.env`:
+`cmd/main.go` делает три ключевые вещи:
+
+1. читает конфигурацию через `config.LoadConfig()`;
+2. подключается к базе через `database.Connect(cfg)`;
+3. создает Gin router через `routes.SetupRouter(cfg)` и запускает HTTP server.
+
+Сервер завершается через graceful shutdown по `SIGINT`/`SIGTERM`.
+
+### 2. Загрузка конфигурации
+
+`internal/config/config.go`:
+
+- пытается прочитать `.env` из текущей рабочей директории;
+- собирает `Config`;
+- валидирует обязательные переменные;
+- формирует список разрешенных frontend origins.
+
+Ключевые переменные:
+
 ```env
 PORT=8080
 DB_HOST=localhost
@@ -57,63 +79,370 @@ DB_USER=postgres
 DB_PASSWORD=your_password
 DB_NAME=orders_db
 JWT_SECRET=super_secret_key
+FRONTEND_ORIGINS=http://localhost:4200,http://5.42.120.239
 ```
 
-4. Запустите сервер:
-```bash
-go run cmd/main.go
-```
+Если `FRONTEND_ORIGINS` не задан, по умолчанию разрешены:
 
-## Аутентификация
-- Регистрации нет.
-- При первом запуске автоматически создаётся пользователь:
-  - `login: admin`
-  - `password: admin`
-- Логин:
-```http
-POST /login
-Content-Type: application/json
+- `http://localhost:4200`
+- `http://5.42.120.239`
 
+### 3. Подключение к базе
+
+`internal/database/database.go`:
+
+- открывает PostgreSQL через GORM;
+- применяет `AutoMigrate` для:
+  - `User`
+  - `Order`
+  - `InteriorDoor`
+  - `EntranceDoor`
+- делает несколько корректировок legacy-схемы;
+- гарантирует существование дефолтного пользователя.
+
+Есть важные миграционные детали:
+
+- если существует старая таблица `doors`, она переименовывается в `interior_doors`;
+- если в `orders` осталась старая колонка `count`, она удаляется;
+- из `interior_doors` удаляются legacy-колонки `type` и `color`.
+
+## Пользователь по умолчанию
+
+При старте сервер приводит пользователя к фиксированному состоянию:
+
+- удаляет legacy-пользователя `admin`;
+- гарантирует пользователя:
+  - `login: almak`
+  - `password: almak05`
+
+Это происходит в `ensureDefaultUser()`.
+
+## Авторизация
+
+### Логин
+
+`POST /login`
+
+Тело:
+
+```json
 {
-  "login": "admin",
-  "password": "admin"
+  "login": "almak",
+  "password": "almak05"
 }
 ```
 
-Ответ:
+Поток обработки:
+
+1. `auth_handler.go` валидирует JSON.
+2. Ищет пользователя по `login`.
+3. Сверяет пароль через `bcrypt.CompareHashAndPassword`.
+4. Выпускает JWT со сроком жизни 24 часа.
+5. Возвращает:
+
 ```json
 {
   "token": "<JWT_TOKEN>"
 }
 ```
 
-## Order model
-- `id` (uint, primary key)
-- `customer` (string)
-- `phone` (string)
-- `date` (string)
-- `count` (int)
-- `price` (float64)
-- `prepayment` (float64)
-- `status` (string)
-- `created_at` (auto)
+### Защита эндпоинтов
 
-## Защищённые эндпоинты
-Требуют заголовок:
+Все операции с заказами идут через middleware `AuthMiddleware` и требуют заголовок:
+
 ```http
 Authorization: Bearer <token>
 ```
 
-- `POST /orders`
-- `GET /orders`
-- `GET /orders/:id`
-- `PUT /orders/:id`
-- `DELETE /orders/:id`
+## Маршруты
+
+Маршруты объявлены в `internal/routes/routes.go`.
+
+Сервер регистрирует их сразу в двух группах:
+
+- с префиксом `/api`
+- без префикса `/`
+
+То есть оба варианта работают:
+
+- `POST /api/login`
+- `POST /login`
+
+Аналогично и для заказов.
+
+### Доступные эндпоинты
+
+- `POST /orders` или `POST /api/orders` - создать заказ
+- `GET /orders` или `GET /api/orders` - список заказов
+- `GET /orders/:id` или `GET /api/orders/:id` - получить заказ
+- `PUT /orders/:id` или `PUT /api/orders/:id` - полностью обновить заказ
+- `PATCH /orders/:id/status` или `PATCH /api/orders/:id/status` - поменять только статус
+- `DELETE /orders/:id` или `DELETE /api/orders/:id` - удалить заказ
+
+## Модель данных
+
+### Order
+
+`internal/models/order.go`
+
+Основные поля:
+
+- `id`
+- `customer`
+- `phone`
+- `date`
+- `price`
+- `prepayment`
+- `discount`
+- `needsDelivery`
+- `deliveryAddress`
+- `comment`
+- `status`
+- `created_at`
+
+Связи:
+
+- `InteriorDoors []InteriorDoor`
+- `EntranceDoors []EntranceDoor`
+
+Удаление заказа каскадно удаляет дочерние двери через `OnDelete:CASCADE`.
+
+### InteriorDoor
+
+`internal/models/door.go`
+
+Хранит:
+
+- модель
+- цену
+- ширину
+- вторую ширину для двустворчатой двери
+- высоту
+- наличие стекла
+- тип полотна
+- количество
+- покрытие
+- комментарий
+
+### EntranceDoor
+
+Там же в `door.go`.
+
+Хранит:
+
+- тип двери (`kind`)
+- модель
+- ширину и высоту
+- цвет
+- покраску
+- цвет панели/обшивки
+- наличие глазка
+- количество
+- цену
+- комментарий
+
+## Как работает создание заказа
+
+Весь сценарий находится в `internal/handlers/order_handler.go`.
+
+### 1. Входящий JSON
+
+`CreateOrder()` принимает `orderRequest`.
+
+Важные поля:
+
+- `customer`
+- `phone`
+- `date`
+- `prepayment`
+- `discount`
+- `needsDelivery`
+- `deliveryAddress`
+- `comment`
+- `status`
+- `interiorDoors[]`
+- `entranceDoors[]`
+
+### 2. Базовая валидация
+
+Сначала Gin делает `ShouldBindJSON(&req)`.
+
+Если JSON не соответствует структуре или отсутствуют обязательные поля, сервер сразу возвращает `400`.
+
+После этого идут прикладные проверки:
+
+1. В заказе должна быть хотя бы одна позиция.
+   Это делает `hasOrderItems(req)`.
+2. Если `needsDelivery = true`, `deliveryAddress` не может быть пустым.
+
+То есть сервер не позволяет сохранить "пустой заказ" или доставку без адреса, даже если клиент это пропустил.
+
+### 3. Пересчет итоговой суммы
+
+Сервер не доверяет цене, присланной фронтом как итог.
+
+В `calculateOrderPrice(req)` он сам считает:
+
+- сумму всех `interiorDoors[i].price * count`
+- плюс сумму всех `entranceDoors[i].price * count`
+
+Результат сохраняется в `order.Price`.
+
+Важно: скидка и доставка не уменьшают и не увеличивают поле `price`.
+`price` здесь означает сырую сумму позиций.
+Логику "итого к оплате" и "долг клиента" сейчас считает фронт.
+
+### 4. Нормализация данных
+
+Перед сохранением сервер подчищает некоторые значения:
+
+- `normalizeDeliveryAddress()` очищает адрес доставки, а если доставка выключена, сохраняет пустую строку.
+- `normalizeOptionalString()` превращает пустые опциональные строки входной двери в `nil`.
+- комментарии и строковые поля дверей обрезаются через `strings.TrimSpace`.
+
+### 5. Сборка модели GORM
+
+Из request собирается `models.Order`:
+
+- шапка заказа копируется напрямую;
+- дочерние элементы дверей собираются через:
+  - `mapInteriorDoorsForCreate()`
+  - `mapEntranceDoorsForCreate()`
+
+В этот момент формируется объект с вложенными слайсами дочерних сущностей.
+
+### 6. Сохранение в БД
+
+`database.DB.Create(&order)` создает:
+
+- запись в таблице `orders`;
+- связанные записи в `interior_doors`;
+- связанные записи в `entrance_doors`.
+
+После создания сервер повторно перечитывает заказ через `preloadOrder(database.DB).First(&order, order.ID)`, чтобы вернуть клиенту уже полный объект с дочерними элементами.
+
+`preloadOrder()` всегда подгружает:
+
+- `InteriorDoors`
+- `EntranceDoors`
+
+### 7. Ответ клиенту
+
+При успехе сервер возвращает `201 Created` и полный заказ целиком.
+
+Это удобно для фронта: он может сразу взять `id` и перейти на экран просмотра заказа.
+
+## Как работает обновление заказа
+
+`UpdateOrder()` очень похож на создание, но есть важная разница: обновление делается как полная перезапись состава заказа.
+
+Алгоритм такой:
+
+1. прочитать `id` из URL;
+2. провалидировать JSON;
+3. проверить наличие хотя бы одной позиции;
+4. проверить адрес доставки при необходимости;
+5. пересчитать `price`;
+6. открыть транзакцию;
+7. найти заказ;
+8. обновить поля шапки;
+9. удалить все старые `interior_doors` и `entrance_doors` у этого заказа;
+10. создать новые дочерние записи заново;
+11. закоммитить транзакцию;
+12. перечитать заказ с `Preload` и вернуть клиенту.
+
+Это значит, что update работает не как patch состава, а как "замени весь состав заказа текущим снимком из фронта".
+
+## Как работает смена статуса
+
+`PATCH /orders/:id/status`
+
+Принимает:
+
+```json
+{
+  "status": 2
+}
+```
+
+Фронт присылает число, а бэк переводит его в строковое значение через `statusCodeToValue()`:
+
+- `1 -> accepted`
+- `2 -> progress`
+- `3 -> completed`
+
+Потом обновляется только поле `status`, после чего заказ снова читается с `Preload` и возвращается клиенту.
+
+## Как работает список и просмотр заказов
+
+### Список
+
+`GetOrders()` делает:
+
+```go
+database.DB.Order("id DESC").Find(&orders)
+```
+
+То есть список отдается по убыванию `id`, новые заказы сверху.
+Для списка дочерние двери не подгружаются.
+
+### Один заказ
+
+`GetOrderByID()` читает заказ по `id` и всегда делает preload дочерних таблиц.
+
+Если нужно понять, что реально получит фронт на экране просмотра/редактирования, смотреть нужно именно этот метод.
+
+## Удаление заказа
+
+`DeleteOrder()` удаляет запись из `orders`.
+
+За счет связи `OnDelete:CASCADE` вместе с заказом удаляются и связанные двери.
 
 ## CORS
-Разрешён origin:
-- `http://localhost:4200`
 
-Разрешённые заголовки:
-- `Authorization`
-- `Content-Type`
+Настраивается в `routes.SetupRouter()` через `gin-contrib/cors`.
+
+Разрешены:
+
+- методы `GET, POST, PUT, PATCH, DELETE, OPTIONS`
+- заголовки `Authorization, Content-Type`
+- credentials
+
+## Локальный запуск
+
+### 1. Подготовить PostgreSQL
+
+```sql
+CREATE DATABASE orders_db;
+```
+
+### 2. Создать `.env`
+
+```env
+PORT=8080
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_NAME=orders_db
+JWT_SECRET=super_secret_key
+FRONTEND_ORIGINS=http://localhost:4200
+```
+
+### 3. Запустить сервер
+
+```bash
+go mod tidy
+go run cmd/main.go
+```
+
+Если фронт подключается локально, он обычно ожидает API по адресу `http://localhost:8081/api`, так что стоит проверить фактический порт/прокси в локальной конфигурации фронта.
+
+## Что полезно помнить при доработках
+
+- Бэк хранит две отдельные коллекции товаров: `interiorDoors` и `entranceDoors`.
+- Серверная сумма `price` - это сумма позиций без учета скидки и без расчета доставки.
+- Пустой заказ создать нельзя.
+- Доставка без адреса запрещена.
+- Полное обновление заказа удаляет старые дочерние записи и создает новые.
+- Для списка заказов preload дверей не делается, для одного заказа - делается.
