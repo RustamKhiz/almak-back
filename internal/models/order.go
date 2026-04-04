@@ -14,6 +14,7 @@ type Order struct {
 	DeliveryAddress string         `json:"deliveryAddress"`
 	Comment         string         `json:"comment"`
 	Status          string         `json:"status" gorm:"not null"`
-	InteriorDoors   []InteriorDoor `json:"orders,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
+	InteriorDoors   []InteriorDoor `json:"interiorDoors,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
+	EntranceDoors   []EntranceDoor `json:"entranceDoors,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
 	CreatedAt       time.Time      `json:"created_at"`
 }
