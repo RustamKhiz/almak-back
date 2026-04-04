@@ -38,3 +38,24 @@ type EntranceDoor struct {
 func (EntranceDoor) TableName() string {
 	return "entrance_doors"
 }
+
+type Molding struct {
+	ID             uint    `json:"id" gorm:"primaryKey"`
+	OrderID        uint    `json:"order_id" gorm:"index;not null"`
+	FrameLength    *int    `json:"frameLength"`
+	FramePrice     float64 `json:"framePrice" gorm:"not null"`
+	FrameCount     int     `json:"frameCount" gorm:"not null"`
+	PlatbandType   string  `json:"platbandType" gorm:"not null"`
+	PlatbandFigure *string `json:"platbandFigure"`
+	PlatbandLength *int    `json:"platbandLength"`
+	PlatbandPrice  float64 `json:"platbandPrice" gorm:"not null"`
+	PlatbandCount  int     `json:"platbandCount" gorm:"not null"`
+	RebateBarCount int     `json:"rebateBarCount" gorm:"not null;default:0"`
+	Color          string  `json:"color" gorm:"not null"`
+	Covering       string  `json:"covering" gorm:"not null;default:Enamel"`
+	Comment        string  `json:"comment"`
+}
+
+func (Molding) TableName() string {
+	return "moldings"
+}

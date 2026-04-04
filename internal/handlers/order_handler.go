@@ -42,6 +42,21 @@ type entranceDoorRequest struct {
 	Comment     string  `json:"comment"`
 }
 
+type moldingRequest struct {
+	FrameLength    *int    `json:"frameLength"`
+	FramePrice     float64 `json:"framePrice" binding:"required"`
+	FrameCount     int     `json:"frameCount" binding:"required"`
+	PlatbandType   string  `json:"platbandType" binding:"required"`
+	PlatbandFigure *string `json:"platbandFigure"`
+	PlatbandLength *int    `json:"platbandLength"`
+	PlatbandPrice  float64 `json:"platbandPrice" binding:"required"`
+	PlatbandCount  int     `json:"platbandCount" binding:"required"`
+	RebateBarCount int     `json:"rebateBarCount"`
+	Color          string  `json:"color" binding:"required"`
+	Covering       string  `json:"covering" binding:"required"`
+	Comment        string  `json:"comment"`
+}
+
 type orderRequest struct {
 	Customer        string                `json:"customer" binding:"required"`
 	Phone           string                `json:"phone" binding:"required"`
@@ -54,6 +69,7 @@ type orderRequest struct {
 	Status          string                `json:"status" binding:"required"`
 	InteriorDoors   []interiorDoorRequest `json:"interiorDoors"`
 	EntranceDoors   []entranceDoorRequest `json:"entranceDoors"`
+	Moldings        []moldingRequest      `json:"moldings"`
 }
 
 type orderStatusRequest struct {
@@ -95,6 +111,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		Status:          req.Status,
 		InteriorDoors:   mapInteriorDoorsForCreate(req.InteriorDoors),
 		EntranceDoors:   mapEntranceDoorsForCreate(req.EntranceDoors),
+		Moldings:        mapMoldingsForCreate(req.Moldings),
 	}
 
 	if err := database.DB.Create(&order).Error; err != nil {
@@ -184,6 +201,9 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 		if err := tx.Where("order_id = ?", order.ID).Delete(&models.EntranceDoor{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("order_id = ?", order.ID).Delete(&models.Molding{}).Error; err != nil {
+			return err
+		}
 
 		interiorDoors := mapInteriorDoorsForCreate(req.InteriorDoors)
 		for i := range interiorDoors {
@@ -201,6 +221,16 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 		}
 		if len(entranceDoors) > 0 {
 			if err := tx.Create(&entranceDoors).Error; err != nil {
+				return err
+			}
+		}
+
+		moldings := mapMoldingsForCreate(req.Moldings)
+		for i := range moldings {
+			moldings[i].OrderID = order.ID
+		}
+		if len(moldings) > 0 {
+			if err := tx.Create(&moldings).Error; err != nil {
 				return err
 			}
 		}
@@ -307,6 +337,10 @@ func calculateOrderPrice(req orderRequest) float64 {
 		totalPrice += door.Price * float64(door.Count)
 	}
 
+	for _, item := range req.Moldings {
+		totalPrice += item.FramePrice*float64(item.FrameCount) + item.PlatbandPrice*float64(item.PlatbandCount)
+	}
+
 	return totalPrice
 }
 
@@ -362,6 +396,27 @@ func mapEntranceDoorsForCreate(doors []entranceDoorRequest) []models.EntranceDoo
 	return result
 }
 
+func mapMoldingsForCreate(items []moldingRequest) []models.Molding {
+	result := make([]models.Molding, 0, len(items))
+	for _, item := range items {
+		result = append(result, models.Molding{
+			FrameLength:    normalizeOptionalInt(item.FrameLength),
+			FramePrice:     item.FramePrice,
+			FrameCount:     item.FrameCount,
+			PlatbandType:   strings.TrimSpace(item.PlatbandType),
+			PlatbandFigure: normalizeOptionalString(item.PlatbandFigure),
+			PlatbandLength: normalizeOptionalInt(item.PlatbandLength),
+			PlatbandPrice:  item.PlatbandPrice,
+			PlatbandCount:  item.PlatbandCount,
+			RebateBarCount: item.RebateBarCount,
+			Color:          strings.TrimSpace(item.Color),
+			Covering:       strings.TrimSpace(item.Covering),
+			Comment:        strings.TrimSpace(item.Comment),
+		})
+	}
+	return result
+}
+
 func normalizeDeliveryAddress(needsDelivery bool, address string) string {
 	if !needsDelivery {
 		return ""
@@ -382,10 +437,23 @@ func normalizeOptionalString(value *string) *string {
 	return &normalized
 }
 
+func normalizeOptionalInt(value *int) *int {
+	if value == nil {
+		return nil
+	}
+
+	normalized := *value
+	if normalized <= 0 {
+		return nil
+	}
+
+	return &normalized
+}
+
 func hasOrderItems(req orderRequest) bool {
-	return len(req.InteriorDoors) > 0 || len(req.EntranceDoors) > 0
+	return len(req.InteriorDoors) > 0 || len(req.EntranceDoors) > 0 || len(req.Moldings) > 0
 }
 
 func preloadOrder(db *gorm.DB) *gorm.DB {
-	return db.Preload("InteriorDoors").Preload("EntranceDoors")
+	return db.Preload("InteriorDoors").Preload("EntranceDoors").Preload("Moldings")
 }

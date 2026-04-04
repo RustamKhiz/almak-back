@@ -16,5 +16,6 @@ type Order struct {
 	Status          string         `json:"status" gorm:"not null"`
 	InteriorDoors   []InteriorDoor `json:"interiorDoors,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
 	EntranceDoors   []EntranceDoor `json:"entranceDoors,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
+	Moldings        []Molding      `json:"moldings,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
 	CreatedAt       time.Time      `json:"created_at"`
 }
