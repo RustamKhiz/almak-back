@@ -69,15 +69,16 @@ type Extension struct {
 func (Extension) TableName() string { return "extensions" }
 
 type Capital struct {
-	ID       uint   `json:"id" gorm:"primaryKey"`
-	OrderID  uint   `json:"order_id" gorm:"index;not null"`
-	Name     string `json:"name" gorm:"not null"`
-	Color    string `json:"color" gorm:"not null"`
-	Covering string `json:"covering" gorm:"not null;default:Enamel"`
-	Width    int    `json:"width" gorm:"not null"`
-	Height   int    `json:"height" gorm:"not null"`
-	Comment  string `json:"comment"`
-	Count    int    `json:"count" gorm:"not null"`
+	ID       uint    `json:"id" gorm:"primaryKey"`
+	OrderID  uint    `json:"order_id" gorm:"index;not null"`
+	Name     string  `json:"name" gorm:"not null"`
+	Color    string  `json:"color" gorm:"not null"`
+	Covering string  `json:"covering" gorm:"not null;default:Enamel"`
+	Width    int     `json:"width" gorm:"not null"`
+	Height   int     `json:"height" gorm:"not null"`
+	Price    float64 `json:"price" gorm:"not null;default:0"`
+	Comment  string  `json:"comment"`
+	Count    int     `json:"count" gorm:"not null"`
 }
 
 func (Capital) TableName() string { return "capitals" }

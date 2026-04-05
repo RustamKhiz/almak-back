@@ -64,13 +64,14 @@ type extensionRequest struct {
 	Price    float64 `json:"price" binding:"required"`
 }
 type capitalRequest struct {
-	Name     string `json:"name" binding:"required"`
-	Color    string `json:"color" binding:"required"`
-	Covering string `json:"covering" binding:"required"`
-	Width    int    `json:"width" binding:"required"`
-	Height   int    `json:"height" binding:"required"`
-	Comment  string `json:"comment"`
-	Count    int    `json:"count" binding:"required"`
+	Name     string  `json:"name" binding:"required"`
+	Color    string  `json:"color" binding:"required"`
+	Covering string  `json:"covering" binding:"required"`
+	Width    int     `json:"width" binding:"required"`
+	Height   int     `json:"height" binding:"required"`
+	Price    float64 `json:"price" binding:"required"`
+	Comment  string  `json:"comment"`
+	Count    int     `json:"count" binding:"required"`
 }
 type hardwareRequest struct {
 	HandleModel     *string  `json:"handleModel"`
@@ -385,6 +386,9 @@ func calculateOrderPrice(req orderRequest) float64 {
 	for _, item := range req.Extensions {
 		total += item.Price * float64(item.Count)
 	}
+	for _, item := range req.Capitals {
+		total += item.Price * float64(item.Count)
+	}
 	for _, item := range req.Hardwares {
 		total += calculateHardwarePrice(item)
 	}
@@ -436,7 +440,7 @@ func mapExtensionsForCreate(items []extensionRequest) []models.Extension {
 func mapCapitalsForCreate(items []capitalRequest) []models.Capital {
 	result := make([]models.Capital, 0, len(items))
 	for _, item := range items {
-		result = append(result, models.Capital{Name: strings.TrimSpace(item.Name), Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Width: item.Width, Height: item.Height, Comment: strings.TrimSpace(item.Comment), Count: item.Count})
+		result = append(result, models.Capital{Name: strings.TrimSpace(item.Name), Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Width: item.Width, Height: item.Height, Price: item.Price, Comment: strings.TrimSpace(item.Comment), Count: item.Count})
 	}
 	return result
 }
