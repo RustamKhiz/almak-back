@@ -1,14 +1,124 @@
 package models
 
-type Door struct {
+type InteriorDoor struct {
 	ID       uint    `json:"id" gorm:"primaryKey"`
 	OrderID  uint    `json:"order_id" gorm:"index;not null"`
-	Type     string  `json:"type" gorm:"not null"`
 	Model    string  `json:"model" gorm:"not null"`
 	Price    float64 `json:"price" gorm:"not null"`
-	Color    string  `json:"color" gorm:"not null"`
 	Width    int     `json:"width" gorm:"not null"`
+	Width2   *int    `json:"width2"`
 	Height   int     `json:"height" gorm:"not null"`
+	HasGlass bool    `json:"hasGlass" gorm:"not null;default:false"`
 	LeafType string  `json:"leafType" gorm:"not null"`
 	Count    int     `json:"count" gorm:"not null"`
+	Covering string  `json:"covering" gorm:"not null;default:PVC"`
+	Comment  string  `json:"comment"`
 }
+
+func (InteriorDoor) TableName() string { return "interior_doors" }
+
+type EntranceDoor struct {
+	ID          uint    `json:"id" gorm:"primaryKey"`
+	OrderID     uint    `json:"order_id" gorm:"index;not null"`
+	Kind        string  `json:"kind" gorm:"not null"`
+	Model       string  `json:"model" gorm:"not null"`
+	Width       int     `json:"width" gorm:"not null"`
+	Height      int     `json:"height" gorm:"not null"`
+	Color       string  `json:"color" gorm:"not null"`
+	Painting    *string `json:"painting"`
+	PanelColor  *string `json:"panelColor"`
+	HasPeephole *bool   `json:"hasPeephole"`
+	Count       int     `json:"count" gorm:"not null"`
+	Price       float64 `json:"price" gorm:"not null"`
+	Comment     string  `json:"comment"`
+}
+
+func (EntranceDoor) TableName() string { return "entrance_doors" }
+
+type Molding struct {
+	ID             uint    `json:"id" gorm:"primaryKey"`
+	OrderID        uint    `json:"order_id" gorm:"index;not null"`
+	FrameLength    *int    `json:"frameLength"`
+	FramePrice     float64 `json:"framePrice" gorm:"not null"`
+	FrameCount     int     `json:"frameCount" gorm:"not null"`
+	PlatbandType   string  `json:"platbandType" gorm:"not null"`
+	PlatbandFigure *string `json:"platbandFigure"`
+	PlatbandLength *int    `json:"platbandLength"`
+	PlatbandPrice  float64 `json:"platbandPrice" gorm:"not null"`
+	PlatbandCount  int     `json:"platbandCount" gorm:"not null"`
+	RebateBarCount int     `json:"rebateBarCount" gorm:"not null;default:0"`
+	Color          string  `json:"color" gorm:"not null"`
+	Covering       string  `json:"covering" gorm:"not null;default:Enamel"`
+	Comment        string  `json:"comment"`
+}
+
+func (Molding) TableName() string { return "moldings" }
+
+type Extension struct {
+	ID       uint    `json:"id" gorm:"primaryKey"`
+	OrderID  uint    `json:"order_id" gorm:"index;not null"`
+	Color    string  `json:"color" gorm:"not null"`
+	Covering string  `json:"covering" gorm:"not null;default:Enamel"`
+	Width    int     `json:"width" gorm:"not null"`
+	Height   int     `json:"height" gorm:"not null"`
+	Comment  string  `json:"comment"`
+	Count    int     `json:"count" gorm:"not null"`
+	Price    float64 `json:"price" gorm:"not null"`
+}
+
+func (Extension) TableName() string { return "extensions" }
+
+type Capital struct {
+	ID       uint    `json:"id" gorm:"primaryKey"`
+	OrderID  uint    `json:"order_id" gorm:"index;not null"`
+	Name     string  `json:"name" gorm:"not null"`
+	Color    string  `json:"color" gorm:"not null"`
+	Covering string  `json:"covering" gorm:"not null;default:Enamel"`
+	Width    int     `json:"width" gorm:"not null"`
+	Height   int     `json:"height" gorm:"not null"`
+	Price    float64 `json:"price" gorm:"not null;default:0"`
+	Comment  string  `json:"comment"`
+	Count    int     `json:"count" gorm:"not null"`
+}
+
+func (Capital) TableName() string { return "capitals" }
+
+type Paneling struct {
+	ID       uint    `json:"id" gorm:"primaryKey"`
+	OrderID  uint    `json:"order_id" gorm:"index;not null"`
+	Color    string  `json:"color" gorm:"not null"`
+	Size     string  `json:"size" gorm:"not null"`
+	Covering string  `json:"covering" gorm:"not null;default:Enamel"`
+	Count    int     `json:"count" gorm:"not null"`
+	Price    float64 `json:"price" gorm:"not null"`
+	Comment  string  `json:"comment"`
+}
+
+func (Paneling) TableName() string { return "panelings" }
+
+type Hardware struct {
+	ID              uint     `json:"id" gorm:"primaryKey"`
+	OrderID         uint     `json:"order_id" gorm:"index;not null"`
+	HandleModel     *string  `json:"handleModel"`
+	HandleColor     *string  `json:"handleColor"`
+	HandleCount     *int     `json:"handleCount"`
+	HandlePrice     *float64 `json:"handlePrice"`
+	MechanismType   *string  `json:"mechanismType"`
+	MechanismCount  *int     `json:"mechanismCount"`
+	MechanismPrice  *float64 `json:"mechanismPrice"`
+	ThumbturnCount  *int     `json:"thumbturnCount"`
+	ThumbturnPrice  *float64 `json:"thumbturnPrice"`
+	EscutcheonCount *int     `json:"escutcheonCount"`
+	EscutcheonPrice *float64 `json:"escutcheonPrice"`
+	CylinderCount   *int     `json:"cylinderCount"`
+	CylinderPrice   *float64 `json:"cylinderPrice"`
+	BoltCount       *int     `json:"boltCount"`
+	BoltPrice       *float64 `json:"boltPrice"`
+	HingeCount      *int     `json:"hingeCount"`
+	HingePrice      *float64 `json:"hingePrice"`
+	DoorStopCount   *int     `json:"doorStopCount"`
+	DoorStopPrice   *float64 `json:"doorStopPrice"`
+	Comment         string   `json:"comment"`
+}
+
+func (Hardware) TableName() string { return "hardwares" }

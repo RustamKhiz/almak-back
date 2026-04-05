@@ -58,7 +58,7 @@ func getFrontendOrigins() []string {
 	if strings.TrimSpace(raw) == "" {
 		return []string{
 			"http://localhost:4200",
-			"http://109.196.100.71",
+			"http://5.42.120.239",
 		}
 	}
 
