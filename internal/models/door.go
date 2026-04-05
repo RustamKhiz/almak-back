@@ -94,3 +94,30 @@ type Paneling struct {
 }
 
 func (Paneling) TableName() string { return "panelings" }
+
+type Hardware struct {
+	ID              uint     `json:"id" gorm:"primaryKey"`
+	OrderID         uint     `json:"order_id" gorm:"index;not null"`
+	HandleModel     *string  `json:"handleModel"`
+	HandleColor     *string  `json:"handleColor"`
+	HandleCount     *int     `json:"handleCount"`
+	HandlePrice     *float64 `json:"handlePrice"`
+	MechanismType   *string  `json:"mechanismType"`
+	MechanismCount  *int     `json:"mechanismCount"`
+	MechanismPrice  *float64 `json:"mechanismPrice"`
+	ThumbturnCount  *int     `json:"thumbturnCount"`
+	ThumbturnPrice  *float64 `json:"thumbturnPrice"`
+	EscutcheonCount *int     `json:"escutcheonCount"`
+	EscutcheonPrice *float64 `json:"escutcheonPrice"`
+	CylinderCount   *int     `json:"cylinderCount"`
+	CylinderPrice   *float64 `json:"cylinderPrice"`
+	BoltCount       *int     `json:"boltCount"`
+	BoltPrice       *float64 `json:"boltPrice"`
+	HingeCount      *int     `json:"hingeCount"`
+	HingePrice      *float64 `json:"hingePrice"`
+	DoorStopCount   *int     `json:"doorStopCount"`
+	DoorStopPrice   *float64 `json:"doorStopPrice"`
+	Comment         string   `json:"comment"`
+}
+
+func (Hardware) TableName() string { return "hardwares" }

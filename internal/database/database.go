@@ -35,33 +35,49 @@ func Connect(cfg config.Config) error {
 		}
 	}
 
-	if err = db.AutoMigrate(&models.User{}, &models.Order{}, &models.InteriorDoor{}, &models.EntranceDoor{}, &models.Molding{}, &models.Extension{}, &models.Capital{}, &models.Paneling{}); err != nil {
+	if err = db.AutoMigrate(&models.User{}, &models.Order{}, &models.InteriorDoor{}, &models.EntranceDoor{}, &models.Molding{}, &models.Extension{}, &models.Capital{}, &models.Hardware{}, &models.Paneling{}); err != nil {
 		return err
 	}
 
 	if db.Migrator().HasColumn(&models.Order{}, "count") {
-		if err = db.Migrator().DropColumn(&models.Order{}, "count"); err != nil { return err }
+		if err = db.Migrator().DropColumn(&models.Order{}, "count"); err != nil {
+			return err
+		}
 	}
 	if db.Migrator().HasColumn(&models.InteriorDoor{}, "type") {
-		if err = db.Migrator().DropColumn(&models.InteriorDoor{}, "type"); err != nil { return err }
+		if err = db.Migrator().DropColumn(&models.InteriorDoor{}, "type"); err != nil {
+			return err
+		}
 	}
 	if db.Migrator().HasColumn(&models.InteriorDoor{}, "color") {
-		if err = db.Migrator().DropColumn(&models.InteriorDoor{}, "color"); err != nil { return err }
+		if err = db.Migrator().DropColumn(&models.InteriorDoor{}, "color"); err != nil {
+			return err
+		}
 	}
-	if err = ensureDefaultUser(db); err != nil { return err }
+	if err = ensureDefaultUser(db); err != nil {
+		return err
+	}
 	DB = db
 	return nil
 }
 
 func ensureDefaultUser(db *gorm.DB) error {
-	if err := db.Where("login = ?", "admin").Delete(&models.User{}).Error; err != nil { return err }
+	if err := db.Where("login = ?", "admin").Delete(&models.User{}).Error; err != nil {
+		return err
+	}
 	const defaultLogin = "almak"
 	const defaultPassword = "almak05"
 	hash, err := bcrypt.GenerateFromPassword([]byte(defaultPassword), bcrypt.DefaultCost)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	var user models.User
 	err = db.Where("login = ?", defaultLogin).First(&user).Error
-	if err == nil { return db.Model(&user).Update("password", string(hash)).Error }
-	if !errors.Is(err, gorm.ErrRecordNotFound) { return err }
-	return db.Create(&models.User{ Login: defaultLogin, Password: string(hash) }).Error
+	if err == nil {
+		return db.Model(&user).Update("password", string(hash)).Error
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	return db.Create(&models.User{Login: defaultLogin, Password: string(hash)}).Error
 }
