@@ -3,6 +3,7 @@ package database
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"almak-back/internal/config"
 	"almak-back/internal/models"
@@ -35,7 +36,7 @@ func Connect(cfg config.Config) error {
 		}
 	}
 
-	if err = db.AutoMigrate(&models.User{}, &models.Order{}, &models.InteriorDoor{}, &models.EntranceDoor{}, &models.Molding{}, &models.Extension{}, &models.Capital{}, &models.Hardware{}, &models.Paneling{}); err != nil {
+	if err = db.AutoMigrate(&models.User{}, &models.Order{}, &models.OrderPayment{}, &models.InteriorDoor{}, &models.EntranceDoor{}, &models.Molding{}, &models.Extension{}, &models.Capital{}, &models.Hardware{}, &models.Paneling{}); err != nil {
 		return err
 	}
 
@@ -49,10 +50,8 @@ func Connect(cfg config.Config) error {
 			return err
 		}
 	}
-	if db.Migrator().HasColumn(&models.InteriorDoor{}, "color") {
-		if err = db.Migrator().DropColumn(&models.InteriorDoor{}, "color"); err != nil {
-			return err
-		}
+	if err = ensureOrderPaymentsBackfilled(db); err != nil {
+		return err
 	}
 	if err = ensureDefaultUser(db); err != nil {
 		return err
@@ -80,4 +79,37 @@ func ensureDefaultUser(db *gorm.DB) error {
 		return err
 	}
 	return db.Create(&models.User{Login: defaultLogin, Password: string(hash)}).Error
+}
+
+func ensureOrderPaymentsBackfilled(db *gorm.DB) error {
+	var orders []models.Order
+	if err := db.Find(&orders).Error; err != nil {
+		return err
+	}
+
+	for _, order := range orders {
+		if order.Prepayment <= 0 {
+			continue
+		}
+
+		var count int64
+		if err := db.Model(&models.OrderPayment{}).Where("order_id = ?", order.ID).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			continue
+		}
+
+		payment := models.OrderPayment{
+			OrderID:   order.ID,
+			Amount:    order.Prepayment,
+			Comment:   "Первоначальный взнос",
+			CreatedAt: time.Now().UTC(),
+		}
+		if err := db.Create(&payment).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
