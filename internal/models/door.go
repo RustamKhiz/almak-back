@@ -92,6 +92,7 @@ type Paneling struct {
 	ID             uint    `json:"id" gorm:"primaryKey"`
 	OrderID        uint    `json:"order_id" gorm:"index;not null"`
 	Color          string  `json:"color" gorm:"not null"`
+	Size           string  `json:"size" gorm:"not null"`
 	Width          int     `json:"width" gorm:"not null"`
 	Height         int     `json:"height" gorm:"not null"`
 	Covering       string  `json:"covering" gorm:"not null;default:Enamel"`
