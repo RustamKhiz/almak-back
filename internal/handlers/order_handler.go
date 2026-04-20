@@ -638,7 +638,7 @@ func mapHardwaresForCreate(items []hardwareRequest) []models.Hardware {
 func mapPanelingsForCreate(items []panelingRequest) []models.Paneling {
 	result := make([]models.Paneling, 0, len(items))
 	for _, item := range items {
-		result = append(result, models.Paneling{Color: strings.TrimSpace(item.Color), Width: item.Width, Height: item.Height, Covering: strings.TrimSpace(item.Covering), QuantityPerSet: normalizeExtensionQuantityPerSet(item.QuantityPerSet), TotalArea: normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea), Count: item.Count, Price: item.Price, Comment: strings.TrimSpace(item.Comment)})
+		result = append(result, models.Paneling{Color: strings.TrimSpace(item.Color), Size: formatSize(item.Width, item.Height), Width: item.Width, Height: item.Height, Covering: strings.TrimSpace(item.Covering), QuantityPerSet: normalizeExtensionQuantityPerSet(item.QuantityPerSet), TotalArea: normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea), Count: item.Count, Price: item.Price, Comment: strings.TrimSpace(item.Comment)})
 	}
 	return result
 }
@@ -717,6 +717,10 @@ func normalizeExtensionTotalArea(width int, height int, quantityPerSet float64, 
 	}
 
 	return float64(width) * float64(height) * normalizeExtensionQuantityPerSet(quantityPerSet) / 10000
+}
+
+func formatSize(width int, height int) string {
+	return strconv.Itoa(width) + "x" + strconv.Itoa(height)
 }
 
 func hasOrderItems(req orderRequest) bool {
