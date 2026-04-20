@@ -48,6 +48,7 @@ func registerRoutes(
 		protected.GET("/orders/:id", orderHandler.GetOrderByID)
 		protected.PUT("/orders/:id", orderHandler.UpdateOrder)
 		protected.PATCH("/orders/:id/status", orderHandler.UpdateOrderStatus)
+		protected.PATCH("/orders/:id/payment-status", orderHandler.UpdateOrderPaymentStatus)
 		protected.DELETE("/orders/:id", orderHandler.DeleteOrder)
 	}
 }

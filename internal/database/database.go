@@ -49,11 +49,6 @@ func Connect(cfg config.Config) error {
 			return err
 		}
 	}
-	if db.Migrator().HasColumn(&models.InteriorDoor{}, "color") {
-		if err = db.Migrator().DropColumn(&models.InteriorDoor{}, "color"); err != nil {
-			return err
-		}
-	}
 	if err = ensureDefaultUser(db); err != nil {
 		return err
 	}

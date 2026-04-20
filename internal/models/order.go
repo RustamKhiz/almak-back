@@ -14,6 +14,7 @@ type Order struct {
 	DeliveryAddress string         `json:"deliveryAddress"`
 	Comment         string         `json:"comment"`
 	Status          string         `json:"status" gorm:"not null"`
+	IsPaid          bool           `json:"isPaid" gorm:"not null;default:false"`
 	InteriorDoors   []InteriorDoor `json:"interiorDoors,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
 	EntranceDoors   []EntranceDoor `json:"entranceDoors,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
 	Moldings        []Molding      `json:"moldings,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
