@@ -36,6 +36,10 @@ func Connect(cfg config.Config) error {
 		}
 	}
 
+	if err = ensureLegacySchemaCompatibility(db); err != nil {
+		return err
+	}
+
 	if err = db.AutoMigrate(&models.User{}, &models.Order{}, &models.OrderPayment{}, &models.InteriorDoor{}, &models.EntranceDoor{}, &models.Molding{}, &models.Extension{}, &models.Capital{}, &models.Hardware{}, &models.Paneling{}); err != nil {
 		return err
 	}
@@ -79,6 +83,54 @@ func ensureDefaultUser(db *gorm.DB) error {
 		return err
 	}
 	return db.Create(&models.User{Login: defaultLogin, Password: string(hash)}).Error
+}
+
+func ensureLegacySchemaCompatibility(db *gorm.DB) error {
+	type legacyColumn struct {
+		table        string
+		column       string
+		addSQL       string
+		normalizeSQL string
+	}
+
+	columns := []legacyColumn{
+		{
+			table:        "interior_doors",
+			column:       "color",
+			addSQL:       `ALTER TABLE "interior_doors" ADD COLUMN "color" text`,
+			normalizeSQL: `UPDATE "interior_doors" SET "color" = 'Не указан' WHERE "color" IS NULL OR BTRIM("color") = ''`,
+		},
+		{
+			table:        "interior_doors",
+			column:       "leaf_type",
+			addSQL:       `ALTER TABLE "interior_doors" ADD COLUMN "leaf_type" text`,
+			normalizeSQL: `UPDATE "interior_doors" SET "leaf_type" = 'Single' WHERE "leaf_type" IS NULL OR BTRIM("leaf_type") = ''`,
+		},
+		{
+			table:        "entrance_doors",
+			column:       "leaf_type",
+			addSQL:       `ALTER TABLE "entrance_doors" ADD COLUMN "leaf_type" text`,
+			normalizeSQL: `UPDATE "entrance_doors" SET "leaf_type" = 'Single' WHERE "leaf_type" IS NULL OR BTRIM("leaf_type") = ''`,
+		},
+	}
+
+	for _, item := range columns {
+		if !db.Migrator().HasTable(item.table) {
+			continue
+		}
+		if !db.Migrator().HasColumn(item.table, item.column) {
+			if err := db.Exec(item.addSQL).Error; err != nil {
+				return err
+			}
+		}
+		if item.normalizeSQL != "" {
+			if err := db.Exec(item.normalizeSQL).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func ensureOrderPaymentsBackfilled(db *gorm.DB) error {
