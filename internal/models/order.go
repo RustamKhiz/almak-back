@@ -15,6 +15,7 @@ type Order struct {
 	Comment         string         `json:"comment"`
 	Status          string         `json:"status" gorm:"not null"`
 	IsPaid          bool           `json:"isPaid" gorm:"not null;default:false"`
+	Payments        []OrderPayment `json:"payments,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
 	InteriorDoors   []InteriorDoor `json:"interiorDoors,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
 	EntranceDoors   []EntranceDoor `json:"entranceDoors,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
 	Moldings        []Molding      `json:"moldings,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`

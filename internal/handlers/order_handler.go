@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -141,6 +142,11 @@ type orderPaymentStatusRequest struct {
 	IsPaid bool `json:"isPaid"`
 }
 
+type addOrderPaymentRequest struct {
+	Amount  float64 `json:"amount" binding:"required"`
+	Comment string  `json:"comment"`
+}
+
 func NewOrderHandler() *OrderHandler { return &OrderHandler{} }
 
 func (h *OrderHandler) CreateOrder(c *gin.Context) {
@@ -157,8 +163,18 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "delivery address is required"})
 		return
 	}
-	order := models.Order{Customer: req.Customer, Phone: req.Phone, Date: req.Date, Price: calculateOrderPrice(req), Prepayment: req.Prepayment, Discount: req.Discount, NeedsDelivery: req.NeedsDelivery, DeliveryAddress: normalizeDeliveryAddress(req.NeedsDelivery, req.DeliveryAddress), Comment: req.Comment, Status: req.Status, IsPaid: req.IsPaid, InteriorDoors: mapInteriorDoorsForCreate(req.InteriorDoors), EntranceDoors: mapEntranceDoorsForCreate(req.EntranceDoors), Moldings: mapMoldingsForCreate(req.Moldings), Extensions: mapExtensionsForCreate(req.Extensions), Capitals: mapCapitalsForCreate(req.Capitals), Hardwares: mapHardwaresForCreate(req.Hardwares), Panelings: mapPanelingsForCreate(req.Panelings)}
-	if err := database.DB.Create(&order).Error; err != nil {
+	order := models.Order{Customer: req.Customer, Phone: req.Phone, Date: req.Date, Price: calculateOrderPrice(req), Prepayment: 0, Discount: req.Discount, NeedsDelivery: req.NeedsDelivery, DeliveryAddress: normalizeDeliveryAddress(req.NeedsDelivery, req.DeliveryAddress), Comment: req.Comment, Status: req.Status, IsPaid: req.IsPaid, InteriorDoors: mapInteriorDoorsForCreate(req.InteriorDoors), EntranceDoors: mapEntranceDoorsForCreate(req.EntranceDoors), Moldings: mapMoldingsForCreate(req.Moldings), Extensions: mapExtensionsForCreate(req.Extensions), Capitals: mapCapitalsForCreate(req.Capitals), Hardwares: mapHardwaresForCreate(req.Hardwares), Panelings: mapPanelingsForCreate(req.Panelings)}
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&order).Error; err != nil {
+			return err
+		}
+		if req.Prepayment > 0 {
+			if err := createOrderPayment(tx, order.ID, req.Prepayment, "Первоначальный взнос"); err != nil {
+				return err
+			}
+		}
+		return syncOrderPrepayment(tx, order.ID)
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create order"})
 		return
 	}
@@ -213,11 +229,14 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 		if err := tx.First(&order, id).Error; err != nil {
 			return err
 		}
+		currentPrepayment, err := getOrderPaidAmount(tx, order.ID)
+		if err != nil {
+			return err
+		}
 		order.Customer = req.Customer
 		order.Phone = req.Phone
 		order.Date = req.Date
 		order.Price = calculateOrderPrice(req)
-		order.Prepayment = req.Prepayment
 		order.Discount = req.Discount
 		order.NeedsDelivery = req.NeedsDelivery
 		order.DeliveryAddress = normalizeDeliveryAddress(req.NeedsDelivery, req.DeliveryAddress)
@@ -311,7 +330,13 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 				return err
 			}
 		}
-		return nil
+		delta := roundMoney(req.Prepayment - currentPrepayment)
+		if delta != 0 {
+			if err := createOrderPayment(tx, order.ID, delta, "Корректировка внесенной суммы из редактирования заказа"); err != nil {
+				return err
+			}
+		}
+		return syncOrderPrepayment(tx, order.ID)
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -403,6 +428,111 @@ func (h *OrderHandler) UpdateOrderPaymentStatus(c *gin.Context) {
 		return
 	}
 	if err := preloadOrder(database.DB).First(&order, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+		return
+	}
+	c.JSON(http.StatusOK, order)
+}
+
+func (h *OrderHandler) AddOrderPayment(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	var req addOrderPaymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	if req.Amount <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "payment amount must be greater than zero"})
+		return
+	}
+
+	var order models.Order
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&order, id).Error; err != nil {
+			return err
+		}
+		if err := createOrderPayment(tx, order.ID, req.Amount, req.Comment); err != nil {
+			return err
+		}
+		return syncOrderPrepayment(tx, order.ID)
+	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add order payment"})
+		return
+	}
+	if err := preloadOrder(database.DB).First(&order, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+		return
+	}
+	c.JSON(http.StatusOK, order)
+}
+
+func (h *OrderHandler) ReverseOrderPayment(c *gin.Context) {
+	orderID, ok := parseID(c)
+	if !ok {
+		return
+	}
+	paymentID, err := strconv.ParseUint(c.Param("paymentId"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payment id"})
+		return
+	}
+
+	var order models.Order
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&order, orderID).Error; err != nil {
+			return err
+		}
+
+		var payment models.OrderPayment
+		if err := tx.Where("order_id = ?", orderID).First(&payment, uint(paymentID)).Error; err != nil {
+			return err
+		}
+		if payment.ReversalOfPaymentID != nil {
+			return errors.New("payment reversal cannot be reversed")
+		}
+		if payment.ReversedByPaymentID != nil {
+			return errors.New("payment already reversed")
+		}
+
+		comment := "Сторно платежа"
+		if strings.TrimSpace(payment.Comment) != "" {
+			comment += ": " + strings.TrimSpace(payment.Comment)
+		}
+		reversal := models.OrderPayment{
+			OrderID:             order.ID,
+			Amount:              roundMoney(-payment.Amount),
+			Comment:             comment,
+			ReversalOfPaymentID: &payment.ID,
+		}
+		if err := tx.Create(&reversal).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&payment).Update("reversed_by_payment_id", reversal.ID).Error; err != nil {
+			return err
+		}
+		return syncOrderPrepayment(tx, order.ID)
+	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order or payment not found"})
+			return
+		}
+		switch err.Error() {
+		case "payment reversal cannot be reversed", "payment already reversed":
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reverse order payment"})
+			return
+		}
+	}
+	if err := preloadOrder(database.DB).First(&order, orderID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
 		return
 	}
@@ -593,7 +723,9 @@ func hasOrderItems(req orderRequest) bool {
 	return len(req.InteriorDoors) > 0 || len(req.EntranceDoors) > 0 || len(req.Moldings) > 0 || len(req.Extensions) > 0 || len(req.Capitals) > 0 || len(mapHardwaresForCreate(req.Hardwares)) > 0 || len(req.Panelings) > 0
 }
 func preloadOrder(db *gorm.DB) *gorm.DB {
-	return db.Preload("InteriorDoors").Preload("EntranceDoors").Preload("Moldings").Preload("Extensions").Preload("Capitals").Preload("Hardwares").Preload("Panelings")
+	return db.Preload("Payments", func(tx *gorm.DB) *gorm.DB {
+		return tx.Order("created_at ASC, id ASC")
+	}).Preload("InteriorDoors").Preload("EntranceDoors").Preload("Moldings").Preload("Extensions").Preload("Capitals").Preload("Hardwares").Preload("Panelings")
 }
 func calculateHardwarePrice(item hardwareRequest) float64 {
 	return optionalLineTotal(item.HandleCount, item.HandlePrice) + optionalLineTotal(item.LockCount, item.LockPrice) + optionalLineTotal(item.FixatorCount, item.FixatorPrice) + optionalLineTotal(item.ThumbturnCount, item.ThumbturnPrice) + optionalLineTotal(item.EscutcheonCount, item.EscutcheonPrice) + optionalLineTotal(item.CylinderCount, item.CylinderPrice) + optionalLineTotal(item.BoltCount, item.BoltPrice) + optionalLineTotal(item.HingeCount, item.HingePrice) + optionalLineTotal(item.DoorStopCount, item.DoorStopPrice)
@@ -606,4 +738,36 @@ func optionalLineTotal(count *int, price *float64) float64 {
 }
 func isHardwareEmpty(item hardwareRequest) bool {
 	return normalizeOptionalString(item.HandleModel) == nil && normalizeOptionalString(item.HandleColor) == nil && normalizeOptionalInt(item.HandleCount) == nil && normalizeOptionalFloat64(item.HandlePrice) == nil && normalizeOptionalInt(item.LockCount) == nil && normalizeOptionalFloat64(item.LockPrice) == nil && normalizeOptionalInt(item.FixatorCount) == nil && normalizeOptionalFloat64(item.FixatorPrice) == nil && normalizeOptionalInt(item.ThumbturnCount) == nil && normalizeOptionalFloat64(item.ThumbturnPrice) == nil && normalizeOptionalInt(item.EscutcheonCount) == nil && normalizeOptionalFloat64(item.EscutcheonPrice) == nil && normalizeOptionalInt(item.CylinderCount) == nil && normalizeOptionalFloat64(item.CylinderPrice) == nil && normalizeOptionalInt(item.BoltCount) == nil && normalizeOptionalFloat64(item.BoltPrice) == nil && normalizeOptionalInt(item.HingeCount) == nil && normalizeOptionalFloat64(item.HingePrice) == nil && normalizeOptionalInt(item.DoorStopCount) == nil && normalizeOptionalFloat64(item.DoorStopPrice) == nil && strings.TrimSpace(item.Comment) == ""
+}
+
+func createOrderPayment(tx *gorm.DB, orderID uint, amount float64, comment string) error {
+	payment := models.OrderPayment{
+		OrderID: orderID,
+		Amount:  roundMoney(amount),
+		Comment: strings.TrimSpace(comment),
+	}
+	return tx.Create(&payment).Error
+}
+
+func getOrderPaidAmount(tx *gorm.DB, orderID uint) (float64, error) {
+	var total float64
+	if err := tx.Model(&models.OrderPayment{}).
+		Where("order_id = ?", orderID).
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&total).Error; err != nil {
+		return 0, err
+	}
+	return roundMoney(total), nil
+}
+
+func syncOrderPrepayment(tx *gorm.DB, orderID uint) error {
+	total, err := getOrderPaidAmount(tx, orderID)
+	if err != nil {
+		return err
+	}
+	return tx.Model(&models.Order{}).Where("id = ?", orderID).Update("prepayment", total).Error
+}
+
+func roundMoney(value float64) float64 {
+	return math.Round(value*100) / 100
 }
