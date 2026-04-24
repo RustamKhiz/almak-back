@@ -17,18 +17,21 @@ import (
 type OrderHandler struct{}
 
 type interiorDoorRequest struct {
-	Model        string  `json:"model" binding:"required"`
-	Color        string  `json:"color" binding:"required"`
-	Price        float64 `json:"price" binding:"required"`
-	Width        int     `json:"width" binding:"required"`
-	Width2       *int    `json:"width2"`
-	Height       int     `json:"height" binding:"required"`
-	HasGlass     bool    `json:"hasGlass"`
-	GlassComment string  `json:"glassComment"`
-	LeafType     string  `json:"leafType" binding:"required"`
-	Count        int     `json:"count" binding:"required"`
-	Covering     string  `json:"covering" binding:"required"`
-	Comment      string  `json:"comment"`
+	Model        string   `json:"model" binding:"required"`
+	Color        string   `json:"color" binding:"required"`
+	Price        float64  `json:"price" binding:"required"`
+	Price2       *float64 `json:"price2"`
+	Width        int      `json:"width" binding:"required"`
+	Width2       *int     `json:"width2"`
+	Height       int      `json:"height" binding:"required"`
+	Height2      *int     `json:"height2"`
+	HasGlass     bool     `json:"hasGlass"`
+	GlassComment string   `json:"glassComment"`
+	LeafType     string   `json:"leafType" binding:"required"`
+	Count        int      `json:"count" binding:"required"`
+	Count2       *int     `json:"count2"`
+	Covering     string   `json:"covering" binding:"required"`
+	Comment      string   `json:"comment"`
 }
 type entranceDoorRequest struct {
 	Kind        string  `json:"kind" binding:"required"`
@@ -163,6 +166,10 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "delivery address is required"})
 		return
 	}
+	if req.Prepayment <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "prepayment must be greater than zero"})
+		return
+	}
 	order := models.Order{Customer: req.Customer, Phone: req.Phone, Date: req.Date, Price: calculateOrderPrice(req), Prepayment: 0, Discount: req.Discount, NeedsDelivery: req.NeedsDelivery, DeliveryAddress: normalizeDeliveryAddress(req.NeedsDelivery, req.DeliveryAddress), Comment: req.Comment, Status: req.Status, IsPaid: req.IsPaid, InteriorDoors: mapInteriorDoorsForCreate(req.InteriorDoors), EntranceDoors: mapEntranceDoorsForCreate(req.EntranceDoors), Moldings: mapMoldingsForCreate(req.Moldings), Extensions: mapExtensionsForCreate(req.Extensions), Capitals: mapCapitalsForCreate(req.Capitals), Hardwares: mapHardwaresForCreate(req.Hardwares), Panelings: mapPanelingsForCreate(req.Panelings)}
 	if err := database.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&order).Error; err != nil {
@@ -224,6 +231,10 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "delivery address is required"})
 		return
 	}
+	if req.Prepayment <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "prepayment must be greater than zero"})
+		return
+	}
 	var order models.Order
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.First(&order, id).Error; err != nil {
@@ -242,7 +253,6 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 		order.DeliveryAddress = normalizeDeliveryAddress(req.NeedsDelivery, req.DeliveryAddress)
 		order.Comment = req.Comment
 		order.Status = req.Status
-		order.IsPaid = req.IsPaid
 		if err := tx.Save(&order).Error; err != nil {
 			return err
 		}
@@ -550,7 +560,7 @@ func parseID(c *gin.Context) (uint, bool) {
 func calculateOrderPrice(req orderRequest) float64 {
 	total := 0.0
 	for _, door := range req.InteriorDoors {
-		total += door.Price * float64(door.Count)
+		total += calculateInteriorDoorPrice(door)
 	}
 	for _, door := range req.EntranceDoors {
 		total += door.Price * float64(door.Count)
@@ -593,7 +603,8 @@ func statusCodeToValue(status int) (string, bool) {
 func mapInteriorDoorsForCreate(doors []interiorDoorRequest) []models.InteriorDoor {
 	result := make([]models.InteriorDoor, 0, len(doors))
 	for _, door := range doors {
-		result = append(result, models.InteriorDoor{Model: strings.TrimSpace(door.Model), Color: strings.TrimSpace(door.Color), Price: door.Price, Width: door.Width, Width2: door.Width2, Height: door.Height, HasGlass: door.HasGlass, GlassComment: normalizeGlassComment(door.HasGlass, door.GlassComment), LeafType: door.LeafType, Count: door.Count, Covering: door.Covering, Comment: strings.TrimSpace(door.Comment)})
+		leafType := normalizeDoorLeafType(door.LeafType)
+		result = append(result, models.InteriorDoor{Model: strings.TrimSpace(door.Model), Color: strings.TrimSpace(door.Color), Price: door.Price, Price2: normalizeSecondLeafFloat64(leafType, door.Price2), Width: door.Width, Width2: normalizeSecondLeafInt(leafType, door.Width2), Height: door.Height, Height2: normalizeSecondLeafInt(leafType, door.Height2), HasGlass: door.HasGlass, GlassComment: normalizeGlassComment(door.HasGlass, door.GlassComment), LeafType: leafType, Count: door.Count, Count2: normalizeSecondLeafInt(leafType, door.Count2), Covering: door.Covering, Comment: strings.TrimSpace(door.Comment)})
 	}
 	return result
 }
@@ -679,6 +690,24 @@ func normalizeOptionalFloat64(value *float64) *float64 {
 	return &normalized
 }
 
+func normalizeSecondLeafInt(leafType string, value *int) *int {
+	if leafType != "Double" || value == nil || *value <= 0 {
+		return nil
+	}
+
+	normalized := *value
+	return &normalized
+}
+
+func normalizeSecondLeafFloat64(leafType string, value *float64) *float64 {
+	if leafType != "Double" || value == nil || *value < 0 {
+		return nil
+	}
+
+	normalized := *value
+	return &normalized
+}
+
 func derefFloat64OrZero(value *float64) float64 {
 	if value == nil {
 		return 0
@@ -734,6 +763,15 @@ func preloadOrder(db *gorm.DB) *gorm.DB {
 func calculateHardwarePrice(item hardwareRequest) float64 {
 	return optionalLineTotal(item.HandleCount, item.HandlePrice) + optionalLineTotal(item.LockCount, item.LockPrice) + optionalLineTotal(item.FixatorCount, item.FixatorPrice) + optionalLineTotal(item.ThumbturnCount, item.ThumbturnPrice) + optionalLineTotal(item.EscutcheonCount, item.EscutcheonPrice) + optionalLineTotal(item.CylinderCount, item.CylinderPrice) + optionalLineTotal(item.BoltCount, item.BoltPrice) + optionalLineTotal(item.HingeCount, item.HingePrice) + optionalLineTotal(item.DoorStopCount, item.DoorStopPrice)
 }
+
+func calculateInteriorDoorPrice(item interiorDoorRequest) float64 {
+	total := item.Price * float64(item.Count)
+	if normalizeDoorLeafType(item.LeafType) == "Double" && item.Price2 != nil && item.Count2 != nil {
+		total += *item.Price2 * float64(*item.Count2)
+	}
+	return total
+}
+
 func optionalLineTotal(count *int, price *float64) float64 {
 	if count == nil || price == nil {
 		return 0
@@ -769,7 +807,18 @@ func syncOrderPrepayment(tx *gorm.DB, orderID uint) error {
 	if err != nil {
 		return err
 	}
-	return tx.Model(&models.Order{}).Where("id = ?", orderID).Update("prepayment", total).Error
+
+	var order models.Order
+	if err := tx.Select("id", "price", "discount").First(&order, orderID).Error; err != nil {
+		return err
+	}
+
+	totalToPay := math.Max(roundMoney(order.Price-order.Discount), 0)
+	isPaid := roundMoney(total) >= totalToPay
+	return tx.Model(&models.Order{}).Where("id = ?", orderID).Updates(map[string]any{
+		"prepayment": total,
+		"is_paid":    isPaid,
+	}).Error
 }
 
 func roundMoney(value float64) float64 {
