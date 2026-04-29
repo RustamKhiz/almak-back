@@ -1,5 +1,11 @@
 package models
 
+import (
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
+)
+
 type InteriorDoor struct {
 	ID           uint     `json:"id" gorm:"primaryKey"`
 	OrderID      uint     `json:"order_id" gorm:"index;not null"`
@@ -99,6 +105,8 @@ type Paneling struct {
 	Width          int     `json:"width" gorm:"not null"`
 	Height         int     `json:"height" gorm:"not null"`
 	Covering       string  `json:"covering" gorm:"not null;default:Enamel"`
+	Kind           string  `json:"kind" gorm:"not null;default:smooth"`
+	Sizes          Sizes   `json:"sizes" gorm:"type:jsonb"`
 	QuantityPerSet float64 `json:"quantityPerSet" gorm:"not null;default:0.5"`
 	TotalArea      float64 `json:"totalArea" gorm:"not null;default:0"`
 	Count          int     `json:"count" gorm:"not null"`
@@ -107,6 +115,37 @@ type Paneling struct {
 }
 
 func (Paneling) TableName() string { return "panelings" }
+
+type Size struct {
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
+type Sizes []Size
+
+func (sizes Sizes) Value() (driver.Value, error) {
+	if sizes == nil {
+		return []byte("[]"), nil
+	}
+
+	return json.Marshal(sizes)
+}
+
+func (sizes *Sizes) Scan(value any) error {
+	if value == nil {
+		*sizes = Sizes{}
+		return nil
+	}
+
+	switch typedValue := value.(type) {
+	case []byte:
+		return json.Unmarshal(typedValue, sizes)
+	case string:
+		return json.Unmarshal([]byte(typedValue), sizes)
+	default:
+		return fmt.Errorf("unsupported sizes value type %T", value)
+	}
+}
 
 type Hardware struct {
 	ID              uint     `json:"id" gorm:"primaryKey"`
