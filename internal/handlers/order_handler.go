@@ -170,6 +170,10 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "prepayment must be greater than zero"})
 		return
 	}
+	if hasInteriorDoorGlassWithoutComment(req.InteriorDoors) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "glass comment is required for glass interior doors"})
+		return
+	}
 	order := models.Order{Customer: req.Customer, Phone: req.Phone, Date: req.Date, Price: calculateOrderPrice(req), Prepayment: 0, Discount: req.Discount, NeedsDelivery: req.NeedsDelivery, DeliveryAddress: normalizeDeliveryAddress(req.NeedsDelivery, req.DeliveryAddress), Comment: req.Comment, Status: req.Status, IsPaid: req.IsPaid, InteriorDoors: mapInteriorDoorsForCreate(req.InteriorDoors), EntranceDoors: mapEntranceDoorsForCreate(req.EntranceDoors), Moldings: mapMoldingsForCreate(req.Moldings), Extensions: mapExtensionsForCreate(req.Extensions), Capitals: mapCapitalsForCreate(req.Capitals), Hardwares: mapHardwaresForCreate(req.Hardwares), Panelings: mapPanelingsForCreate(req.Panelings)}
 	if err := database.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&order).Error; err != nil {
@@ -233,6 +237,10 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 	}
 	if req.Prepayment <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "prepayment must be greater than zero"})
+		return
+	}
+	if hasInteriorDoorGlassWithoutComment(req.InteriorDoors) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "glass comment is required for glass interior doors"})
 		return
 	}
 	var order models.Order
@@ -722,6 +730,16 @@ func normalizeGlassComment(hasGlass bool, value string) string {
 	}
 
 	return strings.TrimSpace(value)
+}
+
+func hasInteriorDoorGlassWithoutComment(doors []interiorDoorRequest) bool {
+	for _, door := range doors {
+		if door.HasGlass && strings.TrimSpace(door.GlassComment) == "" {
+			return true
+		}
+	}
+
+	return false
 }
 
 func normalizeDoorLeafType(value string) string {
