@@ -106,15 +106,17 @@ type hardwareRequest struct {
 	Comment         string   `json:"comment"`
 }
 type panelingRequest struct {
-	Color          string  `json:"color" binding:"required"`
-	Width          int     `json:"width" binding:"required"`
-	Height         int     `json:"height" binding:"required"`
-	Covering       string  `json:"covering" binding:"required"`
-	QuantityPerSet float64 `json:"quantityPerSet" binding:"required"`
-	TotalArea      float64 `json:"totalArea" binding:"required"`
-	Count          int     `json:"count" binding:"required"`
-	Price          float64 `json:"price" binding:"required"`
-	Comment        string  `json:"comment"`
+	Color          string        `json:"color" binding:"required"`
+	Width          int           `json:"width"`
+	Height         int           `json:"height"`
+	Covering       string        `json:"covering" binding:"required"`
+	Kind           string        `json:"kind"`
+	Sizes          []models.Size `json:"sizes"`
+	QuantityPerSet float64       `json:"quantityPerSet"`
+	TotalArea      float64       `json:"totalArea"`
+	Count          int           `json:"count" binding:"required"`
+	Price          float64       `json:"price" binding:"required"`
+	Comment        string        `json:"comment"`
 }
 
 type orderRequest struct {
@@ -168,6 +170,10 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	}
 	if req.Prepayment <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "prepayment must be greater than zero"})
+		return
+	}
+	if hasInteriorDoorGlassWithoutComment(req.InteriorDoors) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "glass comment is required for glass interior doors"})
 		return
 	}
 	order := models.Order{Customer: req.Customer, Phone: req.Phone, Date: req.Date, Price: calculateOrderPrice(req), Prepayment: 0, Discount: req.Discount, NeedsDelivery: req.NeedsDelivery, DeliveryAddress: normalizeDeliveryAddress(req.NeedsDelivery, req.DeliveryAddress), Comment: req.Comment, Status: req.Status, IsPaid: req.IsPaid, InteriorDoors: mapInteriorDoorsForCreate(req.InteriorDoors), EntranceDoors: mapEntranceDoorsForCreate(req.EntranceDoors), Moldings: mapMoldingsForCreate(req.Moldings), Extensions: mapExtensionsForCreate(req.Extensions), Capitals: mapCapitalsForCreate(req.Capitals), Hardwares: mapHardwaresForCreate(req.Hardwares), Panelings: mapPanelingsForCreate(req.Panelings)}
@@ -233,6 +239,10 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 	}
 	if req.Prepayment <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "prepayment must be greater than zero"})
+		return
+	}
+	if hasInteriorDoorGlassWithoutComment(req.InteriorDoors) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "glass comment is required for glass interior doors"})
 		return
 	}
 	var order models.Order
@@ -569,7 +579,7 @@ func calculateOrderPrice(req orderRequest) float64 {
 		total += derefFloat64OrZero(item.FramePrice)*item.FrameCount + item.PlatbandPrice*item.PlatbandCount
 	}
 	for _, item := range req.Extensions {
-		total += item.TotalArea * item.Price * item.Count
+		total += normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea) * item.Price
 	}
 	for _, item := range req.Capitals {
 		total += item.Price * float64(item.Count)
@@ -578,7 +588,7 @@ func calculateOrderPrice(req orderRequest) float64 {
 		total += calculateHardwarePrice(item)
 	}
 	for _, item := range req.Panelings {
-		total += item.TotalArea * item.Price * float64(item.Count)
+		total += normalizePanelingTotalArea(item) * item.Price
 	}
 	return total
 }
@@ -625,7 +635,7 @@ func mapMoldingsForCreate(items []moldingRequest) []models.Molding {
 func mapExtensionsForCreate(items []extensionRequest) []models.Extension {
 	result := make([]models.Extension, 0, len(items))
 	for _, item := range items {
-		result = append(result, models.Extension{Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Width: item.Width, Height: item.Height, QuantityPerSet: normalizeExtensionQuantityPerSet(item.QuantityPerSet), TotalArea: normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea), Comment: strings.TrimSpace(item.Comment), Count: item.Count, Price: item.Price})
+		result = append(result, models.Extension{Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Width: item.Width, Height: item.Height, QuantityPerSet: normalizeExtensionQuantityPerSet(item.QuantityPerSet), TotalArea: normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea), Comment: strings.TrimSpace(item.Comment), Count: 1, Price: item.Price})
 	}
 	return result
 }
@@ -649,7 +659,9 @@ func mapHardwaresForCreate(items []hardwareRequest) []models.Hardware {
 func mapPanelingsForCreate(items []panelingRequest) []models.Paneling {
 	result := make([]models.Paneling, 0, len(items))
 	for _, item := range items {
-		result = append(result, models.Paneling{Color: strings.TrimSpace(item.Color), Size: formatSize(item.Width, item.Height), Width: item.Width, Height: item.Height, Covering: strings.TrimSpace(item.Covering), QuantityPerSet: normalizeExtensionQuantityPerSet(item.QuantityPerSet), TotalArea: normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea), Count: item.Count, Price: item.Price, Comment: strings.TrimSpace(item.Comment)})
+		sizes := normalizePanelingSizes(item)
+		firstSize := sizes[0]
+		result = append(result, models.Paneling{Color: strings.TrimSpace(item.Color), Size: formatSizes(sizes), Width: firstSize.Width, Height: firstSize.Height, Covering: strings.TrimSpace(item.Covering), Kind: normalizePanelingKind(item.Kind), Sizes: models.Sizes(sizes), QuantityPerSet: 1, TotalArea: normalizePanelingTotalArea(item), Count: len(sizes), Price: item.Price, Comment: strings.TrimSpace(item.Comment)})
 	}
 	return result
 }
@@ -724,6 +736,16 @@ func normalizeGlassComment(hasGlass bool, value string) string {
 	return strings.TrimSpace(value)
 }
 
+func hasInteriorDoorGlassWithoutComment(doors []interiorDoorRequest) bool {
+	for _, door := range doors {
+		if door.HasGlass && strings.TrimSpace(door.GlassComment) == "" {
+			return true
+		}
+	}
+
+	return false
+}
+
 func normalizeDoorLeafType(value string) string {
 	if strings.EqualFold(strings.TrimSpace(value), "Double") {
 		return "Double"
@@ -750,6 +772,56 @@ func normalizeExtensionTotalArea(width int, height int, quantityPerSet float64, 
 
 func formatSize(width int, height int) string {
 	return strconv.Itoa(width) + "x" + strconv.Itoa(height)
+}
+
+func formatSizes(sizes []models.Size) string {
+	parts := make([]string, 0, len(sizes))
+	for _, size := range sizes {
+		parts = append(parts, formatSize(size.Width, size.Height))
+	}
+
+	return strings.Join(parts, "; ")
+}
+
+func normalizePanelingKind(value string) string {
+	normalized := strings.TrimSpace(value)
+	switch normalized {
+	case "figure", "baguette":
+		return normalized
+	default:
+		return "smooth"
+	}
+}
+
+func normalizePanelingSizes(item panelingRequest) []models.Size {
+	result := make([]models.Size, 0, len(item.Sizes))
+	for _, size := range item.Sizes {
+		if size.Width <= 0 || size.Height <= 0 {
+			continue
+		}
+		result = append(result, models.Size{Width: size.Width, Height: size.Height})
+	}
+	if len(result) > 0 {
+		return result
+	}
+	if item.Width > 0 && item.Height > 0 {
+		return []models.Size{{Width: item.Width, Height: item.Height}}
+	}
+
+	return []models.Size{{Width: 1, Height: 1}}
+}
+
+func normalizePanelingTotalArea(item panelingRequest) float64 {
+	if len(item.Sizes) == 0 && item.TotalArea > 0 {
+		return roundMoney(item.TotalArea * math.Max(float64(item.Count), 1))
+	}
+
+	total := 0.0
+	for _, size := range normalizePanelingSizes(item) {
+		total += float64(size.Width) * float64(size.Height) / 10000
+	}
+
+	return roundMoney(total)
 }
 
 func hasOrderItems(req orderRequest) bool {

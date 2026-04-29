@@ -112,6 +112,38 @@ func ensureLegacySchemaCompatibility(db *gorm.DB) error {
 			addSQL:       `ALTER TABLE "entrance_doors" ADD COLUMN "leaf_type" text`,
 			normalizeSQL: `UPDATE "entrance_doors" SET "leaf_type" = 'Single' WHERE "leaf_type" IS NULL OR BTRIM("leaf_type") = ''`,
 		},
+		{
+			table:        "panelings",
+			column:       "width",
+			addSQL:       `ALTER TABLE "panelings" ADD COLUMN "width" bigint`,
+			normalizeSQL: `UPDATE "panelings" SET "width" = 1 WHERE "width" IS NULL OR "width" <= 0`,
+		},
+		{
+			table:        "panelings",
+			column:       "height",
+			addSQL:       `ALTER TABLE "panelings" ADD COLUMN "height" bigint`,
+			normalizeSQL: `UPDATE "panelings" SET "height" = 1 WHERE "height" IS NULL OR "height" <= 0`,
+		},
+		{
+			table:        "panelings",
+			column:       "size",
+			addSQL:       `ALTER TABLE "panelings" ADD COLUMN "size" text`,
+			normalizeSQL: `UPDATE "panelings" SET "size" = CONCAT("width", 'x', "height") WHERE "size" IS NULL OR BTRIM("size") = ''`,
+		},
+		{
+			table:        "panelings",
+			column:       "kind",
+			addSQL:       `ALTER TABLE "panelings" ADD COLUMN "kind" text`,
+			normalizeSQL: `UPDATE "panelings" SET "kind" = 'smooth' WHERE "kind" IS NULL OR BTRIM("kind") = ''`,
+		},
+		{
+			table:  "panelings",
+			column: "sizes",
+			addSQL: `ALTER TABLE "panelings" ADD COLUMN "sizes" jsonb`,
+			normalizeSQL: `UPDATE "panelings"
+				SET "sizes" = jsonb_build_array(jsonb_build_object('width', "width", 'height', "height"))
+				WHERE "sizes" IS NULL OR "sizes" = 'null'::jsonb OR "sizes" = '[]'::jsonb`,
+		},
 	}
 
 	for _, item := range columns {
