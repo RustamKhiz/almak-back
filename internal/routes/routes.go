@@ -39,6 +39,7 @@ func registerRoutes(
 	orderHandler *handlers.OrderHandler,
 ) {
 	group.POST("/login", authHandler.Login)
+	group.POST("/refresh", authHandler.Refresh)
 
 	protected := group.Group("/")
 	protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))

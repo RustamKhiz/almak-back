@@ -1,4 +1,4 @@
-﻿package handlers
+package handlers
 
 import (
 	"net/http"
@@ -20,6 +20,10 @@ type AuthHandler struct {
 type loginRequest struct {
 	Login    string `json:"login" binding:"required"`
 	Password string `json:"password" binding:"required"`
+}
+
+type refreshRequest struct {
+	RefreshToken string `json:"refreshToken" binding:"required"`
 }
 
 func NewAuthHandler(cfg config.Config) *AuthHandler {
@@ -44,18 +48,85 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	claims := jwt.MapClaims{
-		"sub":   user.ID,
-		"login": user.Login,
-		"exp":   time.Now().Add(24 * time.Hour).Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(h.Config.JWTSecret))
+	tokenString, refreshTokenString, err := h.issueTokenPair(user.ID, user.Login)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "не удалось выпустить токен"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": tokenString})
+	c.JSON(http.StatusOK, gin.H{"token": tokenString, "refreshToken": refreshTokenString})
+}
+
+func (h *AuthHandler) Refresh(c *gin.Context) {
+	var req refreshRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "некорректное тело запроса"})
+		return
+	}
+
+	token, err := jwt.Parse(req.RefreshToken, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrTokenSignatureInvalid
+		}
+		return []byte(h.Config.JWTSecret), nil
+	})
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "невалидный refresh token"})
+		return
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || claims["type"] != "refresh" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "невалидный refresh token"})
+		return
+	}
+
+	userIDFloat, ok := claims["sub"].(float64)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "невалидный refresh token"})
+		return
+	}
+
+	var user models.User
+	if err := database.DB.First(&user, uint(userIDFloat)).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "пользователь не найден"})
+		return
+	}
+
+	tokenString, refreshTokenString, err := h.issueTokenPair(user.ID, user.Login)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "не удалось выпустить токен"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"token": tokenString, "refreshToken": refreshTokenString})
+}
+
+func (h *AuthHandler) issueTokenPair(userID uint, login string) (string, string, error) {
+	tokenString, err := h.issueToken(jwt.MapClaims{
+		"sub":   userID,
+		"login": login,
+		"type":  "access",
+		"exp":   time.Now().Add(24 * time.Hour).Unix(),
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	refreshTokenString, err := h.issueToken(jwt.MapClaims{
+		"sub":   userID,
+		"login": login,
+		"type":  "refresh",
+		"exp":   time.Now().Add(30 * 24 * time.Hour).Unix(),
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	return tokenString, refreshTokenString, nil
+}
+
+func (h *AuthHandler) issueToken(claims jwt.MapClaims) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(h.Config.JWTSecret))
 }
