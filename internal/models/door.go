@@ -158,6 +158,8 @@ type Hardware struct {
 	LockPrice       *float64 `json:"lockPrice"`
 	FixatorCount    *int     `json:"fixatorCount"`
 	FixatorPrice    *float64 `json:"fixatorPrice"`
+	ClickCount      *int     `json:"clickCount"`
+	ClickPrice      *float64 `json:"clickPrice"`
 	ThumbturnCount  *int     `json:"thumbturnCount"`
 	ThumbturnPrice  *float64 `json:"thumbturnPrice"`
 	EscutcheonCount *int     `json:"escutcheonCount"`

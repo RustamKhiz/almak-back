@@ -91,6 +91,8 @@ type hardwareRequest struct {
 	LockPrice       *float64 `json:"lockPrice"`
 	FixatorCount    *int     `json:"fixatorCount"`
 	FixatorPrice    *float64 `json:"fixatorPrice"`
+	ClickCount      *int     `json:"clickCount"`
+	ClickPrice      *float64 `json:"clickPrice"`
 	ThumbturnCount  *int     `json:"thumbturnCount"`
 	ThumbturnPrice  *float64 `json:"thumbturnPrice"`
 	EscutcheonCount *int     `json:"escutcheonCount"`
@@ -123,7 +125,7 @@ type orderRequest struct {
 	Customer        string                `json:"customer" binding:"required"`
 	Phone           string                `json:"phone" binding:"required"`
 	Date            string                `json:"date" binding:"required"`
-	Prepayment      float64               `json:"prepayment" binding:"required"`
+	Prepayment      float64               `json:"prepayment"`
 	Discount        float64               `json:"discount"`
 	NeedsDelivery   bool                  `json:"needsDelivery"`
 	DeliveryAddress string                `json:"deliveryAddress"`
@@ -152,6 +154,10 @@ type addOrderPaymentRequest struct {
 	Comment string  `json:"comment"`
 }
 
+type addOrderDiscountRequest struct {
+	Amount float64 `json:"amount" binding:"required"`
+}
+
 func NewOrderHandler() *OrderHandler { return &OrderHandler{} }
 
 func (h *OrderHandler) CreateOrder(c *gin.Context) {
@@ -168,8 +174,8 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "delivery address is required"})
 		return
 	}
-	if req.Prepayment <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "prepayment must be greater than zero"})
+	if req.Prepayment < 0 || req.Discount < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "payment values cannot be negative"})
 		return
 	}
 	if hasInteriorDoorGlassWithoutComment(req.InteriorDoors) {
@@ -237,8 +243,8 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "delivery address is required"})
 		return
 	}
-	if req.Prepayment <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "prepayment must be greater than zero"})
+	if req.Prepayment < 0 || req.Discount < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "payment values cannot be negative"})
 		return
 	}
 	if hasInteriorDoorGlassWithoutComment(req.InteriorDoors) {
@@ -493,6 +499,46 @@ func (h *OrderHandler) AddOrderPayment(c *gin.Context) {
 	c.JSON(http.StatusOK, order)
 }
 
+func (h *OrderHandler) AddOrderDiscount(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	var req addOrderDiscountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	if req.Amount <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "discount amount must be greater than zero"})
+		return
+	}
+
+	var order models.Order
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&order, id).Error; err != nil {
+			return err
+		}
+		nextDiscount := roundMoney(order.Discount + req.Amount)
+		if err := tx.Model(&order).Update("discount", nextDiscount).Error; err != nil {
+			return err
+		}
+		return syncOrderPrepayment(tx, order.ID)
+	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add order discount"})
+		return
+	}
+	if err := preloadOrder(database.DB).First(&order, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+		return
+	}
+	c.JSON(http.StatusOK, order)
+}
+
 func (h *OrderHandler) ReverseOrderPayment(c *gin.Context) {
 	orderID, ok := parseID(c)
 	if !ok {
@@ -652,7 +698,7 @@ func mapHardwaresForCreate(items []hardwareRequest) []models.Hardware {
 		if isHardwareEmpty(item) {
 			continue
 		}
-		result = append(result, models.Hardware{HandleModel: normalizeOptionalString(item.HandleModel), HandleColor: normalizeOptionalString(item.HandleColor), HandleCount: normalizeOptionalInt(item.HandleCount), HandlePrice: normalizeOptionalFloat64(item.HandlePrice), LockCount: normalizeOptionalInt(item.LockCount), LockPrice: normalizeOptionalFloat64(item.LockPrice), FixatorCount: normalizeOptionalInt(item.FixatorCount), FixatorPrice: normalizeOptionalFloat64(item.FixatorPrice), ThumbturnCount: normalizeOptionalInt(item.ThumbturnCount), ThumbturnPrice: normalizeOptionalFloat64(item.ThumbturnPrice), EscutcheonCount: normalizeOptionalInt(item.EscutcheonCount), EscutcheonPrice: normalizeOptionalFloat64(item.EscutcheonPrice), CylinderCount: normalizeOptionalInt(item.CylinderCount), CylinderPrice: normalizeOptionalFloat64(item.CylinderPrice), BoltCount: normalizeOptionalInt(item.BoltCount), BoltPrice: normalizeOptionalFloat64(item.BoltPrice), HingeCount: normalizeOptionalInt(item.HingeCount), HingePrice: normalizeOptionalFloat64(item.HingePrice), DoorStopCount: normalizeOptionalInt(item.DoorStopCount), DoorStopPrice: normalizeOptionalFloat64(item.DoorStopPrice), Comment: strings.TrimSpace(item.Comment)})
+		result = append(result, models.Hardware{HandleModel: normalizeOptionalString(item.HandleModel), HandleColor: normalizeOptionalString(item.HandleColor), HandleCount: normalizeOptionalInt(item.HandleCount), HandlePrice: normalizeOptionalFloat64(item.HandlePrice), LockCount: normalizeOptionalInt(item.LockCount), LockPrice: normalizeOptionalFloat64(item.LockPrice), FixatorCount: normalizeOptionalInt(item.FixatorCount), FixatorPrice: normalizeOptionalFloat64(item.FixatorPrice), ClickCount: normalizeOptionalInt(item.ClickCount), ClickPrice: normalizeOptionalFloat64(item.ClickPrice), ThumbturnCount: normalizeOptionalInt(item.ThumbturnCount), ThumbturnPrice: normalizeOptionalFloat64(item.ThumbturnPrice), EscutcheonCount: normalizeOptionalInt(item.EscutcheonCount), EscutcheonPrice: normalizeOptionalFloat64(item.EscutcheonPrice), CylinderCount: normalizeOptionalInt(item.CylinderCount), CylinderPrice: normalizeOptionalFloat64(item.CylinderPrice), BoltCount: normalizeOptionalInt(item.BoltCount), BoltPrice: normalizeOptionalFloat64(item.BoltPrice), HingeCount: normalizeOptionalInt(item.HingeCount), HingePrice: normalizeOptionalFloat64(item.HingePrice), DoorStopCount: normalizeOptionalInt(item.DoorStopCount), DoorStopPrice: normalizeOptionalFloat64(item.DoorStopPrice), Comment: strings.TrimSpace(item.Comment)})
 	}
 	return result
 }
@@ -833,7 +879,7 @@ func preloadOrder(db *gorm.DB) *gorm.DB {
 	}).Preload("InteriorDoors").Preload("EntranceDoors").Preload("Moldings").Preload("Extensions").Preload("Capitals").Preload("Hardwares").Preload("Panelings")
 }
 func calculateHardwarePrice(item hardwareRequest) float64 {
-	return optionalLineTotal(item.HandleCount, item.HandlePrice) + optionalLineTotal(item.LockCount, item.LockPrice) + optionalLineTotal(item.FixatorCount, item.FixatorPrice) + optionalLineTotal(item.ThumbturnCount, item.ThumbturnPrice) + optionalLineTotal(item.EscutcheonCount, item.EscutcheonPrice) + optionalLineTotal(item.CylinderCount, item.CylinderPrice) + optionalLineTotal(item.BoltCount, item.BoltPrice) + optionalLineTotal(item.HingeCount, item.HingePrice) + optionalLineTotal(item.DoorStopCount, item.DoorStopPrice)
+	return optionalLineTotal(item.HandleCount, item.HandlePrice) + optionalLineTotal(item.LockCount, item.LockPrice) + optionalLineTotal(item.FixatorCount, item.FixatorPrice) + optionalLineTotal(item.ClickCount, item.ClickPrice) + optionalLineTotal(item.ThumbturnCount, item.ThumbturnPrice) + optionalLineTotal(item.EscutcheonCount, item.EscutcheonPrice) + optionalLineTotal(item.CylinderCount, item.CylinderPrice) + optionalLineTotal(item.BoltCount, item.BoltPrice) + optionalLineTotal(item.HingeCount, item.HingePrice) + optionalLineTotal(item.DoorStopCount, item.DoorStopPrice)
 }
 
 func calculateInteriorDoorPrice(item interiorDoorRequest) float64 {
@@ -851,7 +897,7 @@ func optionalLineTotal(count *int, price *float64) float64 {
 	return float64(*count) * *price
 }
 func isHardwareEmpty(item hardwareRequest) bool {
-	return normalizeOptionalString(item.HandleModel) == nil && normalizeOptionalString(item.HandleColor) == nil && normalizeOptionalInt(item.HandleCount) == nil && normalizeOptionalFloat64(item.HandlePrice) == nil && normalizeOptionalInt(item.LockCount) == nil && normalizeOptionalFloat64(item.LockPrice) == nil && normalizeOptionalInt(item.FixatorCount) == nil && normalizeOptionalFloat64(item.FixatorPrice) == nil && normalizeOptionalInt(item.ThumbturnCount) == nil && normalizeOptionalFloat64(item.ThumbturnPrice) == nil && normalizeOptionalInt(item.EscutcheonCount) == nil && normalizeOptionalFloat64(item.EscutcheonPrice) == nil && normalizeOptionalInt(item.CylinderCount) == nil && normalizeOptionalFloat64(item.CylinderPrice) == nil && normalizeOptionalInt(item.BoltCount) == nil && normalizeOptionalFloat64(item.BoltPrice) == nil && normalizeOptionalInt(item.HingeCount) == nil && normalizeOptionalFloat64(item.HingePrice) == nil && normalizeOptionalInt(item.DoorStopCount) == nil && normalizeOptionalFloat64(item.DoorStopPrice) == nil && strings.TrimSpace(item.Comment) == ""
+	return normalizeOptionalString(item.HandleModel) == nil && normalizeOptionalString(item.HandleColor) == nil && normalizeOptionalInt(item.HandleCount) == nil && normalizeOptionalFloat64(item.HandlePrice) == nil && normalizeOptionalInt(item.LockCount) == nil && normalizeOptionalFloat64(item.LockPrice) == nil && normalizeOptionalInt(item.FixatorCount) == nil && normalizeOptionalFloat64(item.FixatorPrice) == nil && normalizeOptionalInt(item.ClickCount) == nil && normalizeOptionalFloat64(item.ClickPrice) == nil && normalizeOptionalInt(item.ThumbturnCount) == nil && normalizeOptionalFloat64(item.ThumbturnPrice) == nil && normalizeOptionalInt(item.EscutcheonCount) == nil && normalizeOptionalFloat64(item.EscutcheonPrice) == nil && normalizeOptionalInt(item.CylinderCount) == nil && normalizeOptionalFloat64(item.CylinderPrice) == nil && normalizeOptionalInt(item.BoltCount) == nil && normalizeOptionalFloat64(item.BoltPrice) == nil && normalizeOptionalInt(item.HingeCount) == nil && normalizeOptionalFloat64(item.HingePrice) == nil && normalizeOptionalInt(item.DoorStopCount) == nil && normalizeOptionalFloat64(item.DoorStopPrice) == nil && strings.TrimSpace(item.Comment) == ""
 }
 
 func createOrderPayment(tx *gorm.DB, orderID uint, amount float64, comment string) error {
