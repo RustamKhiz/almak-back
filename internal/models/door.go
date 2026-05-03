@@ -56,7 +56,7 @@ type Molding struct {
 	PlatbandType   string  `json:"platbandType" gorm:"not null"`
 	PlatbandFigure *string `json:"platbandFigure"`
 	PlatbandLength *int    `json:"platbandLength"`
-	PlatbandPrice  float64 `json:"platbandPrice" gorm:"not null"`
+	PlatbandPrice  float64 `json:"platbandPrice"`
 	PlatbandCount  float64 `json:"platbandCount" gorm:"not null"`
 	RebateBarCount int     `json:"rebateBarCount" gorm:"not null;default:0"`
 	Color          string  `json:"color" gorm:"not null"`

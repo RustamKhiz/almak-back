@@ -154,8 +154,8 @@ type addOrderPaymentRequest struct {
 	Comment string  `json:"comment"`
 }
 
-type addOrderDiscountRequest struct {
-	Amount float64 `json:"amount" binding:"required"`
+type updateOrderDiscountRequest struct {
+	Amount *float64 `json:"amount" binding:"required"`
 }
 
 func NewOrderHandler() *OrderHandler { return &OrderHandler{} }
@@ -499,18 +499,18 @@ func (h *OrderHandler) AddOrderPayment(c *gin.Context) {
 	c.JSON(http.StatusOK, order)
 }
 
-func (h *OrderHandler) AddOrderDiscount(c *gin.Context) {
+func (h *OrderHandler) UpdateOrderDiscount(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
 		return
 	}
-	var req addOrderDiscountRequest
+	var req updateOrderDiscountRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-	if req.Amount <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "discount amount must be greater than zero"})
+	if *req.Amount < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "discount amount must not be negative"})
 		return
 	}
 
@@ -519,8 +519,7 @@ func (h *OrderHandler) AddOrderDiscount(c *gin.Context) {
 		if err := tx.First(&order, id).Error; err != nil {
 			return err
 		}
-		nextDiscount := roundMoney(order.Discount + req.Amount)
-		if err := tx.Model(&order).Update("discount", nextDiscount).Error; err != nil {
+		if err := tx.Model(&order).Update("discount", roundMoney(*req.Amount)).Error; err != nil {
 			return err
 		}
 		return syncOrderPrepayment(tx, order.ID)
@@ -529,7 +528,7 @@ func (h *OrderHandler) AddOrderDiscount(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add order discount"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update order discount"})
 		return
 	}
 	if err := preloadOrder(database.DB).First(&order, id).Error; err != nil {
