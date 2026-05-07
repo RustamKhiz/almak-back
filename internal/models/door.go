@@ -59,6 +59,7 @@ type Molding struct {
 	PlatbandPrice  float64 `json:"platbandPrice"`
 	PlatbandCount  float64 `json:"platbandCount" gorm:"not null"`
 	RebateBarCount int     `json:"rebateBarCount" gorm:"not null;default:0"`
+	RebateBarPrice float64 `json:"rebateBarPrice" gorm:"not null;default:0"`
 	Color          string  `json:"color" gorm:"not null"`
 	Covering       string  `json:"covering" gorm:"not null;default:Enamel"`
 	Comment        string  `json:"comment"`
