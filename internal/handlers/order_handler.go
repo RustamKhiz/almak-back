@@ -57,6 +57,7 @@ type moldingRequest struct {
 	PlatbandPrice  float64  `json:"platbandPrice" binding:"required"`
 	PlatbandCount  float64  `json:"platbandCount" binding:"required"`
 	RebateBarCount int      `json:"rebateBarCount"`
+	RebateBarPrice float64  `json:"rebateBarPrice"`
 	Color          string   `json:"color" binding:"required"`
 	Covering       string   `json:"covering" binding:"required"`
 	Comment        string   `json:"comment"`
@@ -143,10 +144,6 @@ type orderRequest struct {
 
 type orderStatusRequest struct {
 	Status int `json:"status" binding:"required"`
-}
-
-type orderPaymentStatusRequest struct {
-	IsPaid bool `json:"isPaid"`
 }
 
 type addOrderPaymentRequest struct {
@@ -430,36 +427,6 @@ func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, order)
 }
 
-func (h *OrderHandler) UpdateOrderPaymentStatus(c *gin.Context) {
-	id, ok := parseID(c)
-	if !ok {
-		return
-	}
-	var req orderPaymentStatusRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
-		return
-	}
-	var order models.Order
-	if err := database.DB.First(&order, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update order payment status"})
-		return
-	}
-	if err := database.DB.Model(&order).Update("is_paid", req.IsPaid).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update order payment status"})
-		return
-	}
-	if err := preloadOrder(database.DB).First(&order, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
-		return
-	}
-	c.JSON(http.StatusOK, order)
-}
-
 func (h *OrderHandler) AddOrderPayment(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
@@ -621,7 +588,7 @@ func calculateOrderPrice(req orderRequest) float64 {
 		total += door.Price * float64(door.Count)
 	}
 	for _, item := range req.Moldings {
-		total += derefFloat64OrZero(item.FramePrice)*item.FrameCount + item.PlatbandPrice*item.PlatbandCount
+		total += derefFloat64OrZero(item.FramePrice)*item.FrameCount + item.PlatbandPrice*item.PlatbandCount + item.RebateBarPrice*float64(item.RebateBarCount)
 	}
 	for _, item := range req.Extensions {
 		total += normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea) * item.Price
@@ -673,7 +640,7 @@ func mapEntranceDoorsForCreate(doors []entranceDoorRequest) []models.EntranceDoo
 func mapMoldingsForCreate(items []moldingRequest) []models.Molding {
 	result := make([]models.Molding, 0, len(items))
 	for _, item := range items {
-		result = append(result, models.Molding{FrameLength: normalizeOptionalInt(item.FrameLength), FramePrice: derefFloat64OrZero(item.FramePrice), FrameCount: item.FrameCount, PlatbandType: strings.TrimSpace(item.PlatbandType), PlatbandFigure: normalizeOptionalString(item.PlatbandFigure), PlatbandLength: normalizeOptionalInt(item.PlatbandLength), PlatbandPrice: item.PlatbandPrice, PlatbandCount: item.PlatbandCount, RebateBarCount: item.RebateBarCount, Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Comment: strings.TrimSpace(item.Comment)})
+		result = append(result, models.Molding{FrameLength: normalizeOptionalInt(item.FrameLength), FramePrice: derefFloat64OrZero(item.FramePrice), FrameCount: item.FrameCount, PlatbandType: strings.TrimSpace(item.PlatbandType), PlatbandFigure: normalizeOptionalString(item.PlatbandFigure), PlatbandLength: normalizeOptionalInt(item.PlatbandLength), PlatbandPrice: item.PlatbandPrice, PlatbandCount: item.PlatbandCount, RebateBarCount: item.RebateBarCount, RebateBarPrice: item.RebateBarPrice, Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Comment: strings.TrimSpace(item.Comment)})
 	}
 	return result
 }

@@ -3,6 +3,7 @@ package database
 import (
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"almak-back/internal/config"
@@ -55,6 +56,9 @@ func Connect(cfg config.Config) error {
 		}
 	}
 	if err = ensureOrderPaymentsBackfilled(db); err != nil {
+		return err
+	}
+	if err = ensureOrderPaymentStatusesSynced(db); err != nil {
 		return err
 	}
 	if err = ensureDefaultUser(db); err != nil {
@@ -196,4 +200,36 @@ func ensureOrderPaymentsBackfilled(db *gorm.DB) error {
 	}
 
 	return nil
+}
+
+func ensureOrderPaymentStatusesSynced(db *gorm.DB) error {
+	var orders []models.Order
+	if err := db.Find(&orders).Error; err != nil {
+		return err
+	}
+
+	for _, order := range orders {
+		var paidAmount float64
+		if err := db.Model(&models.OrderPayment{}).
+			Where("order_id = ?", order.ID).
+			Select("COALESCE(SUM(amount), 0)").
+			Scan(&paidAmount).Error; err != nil {
+			return err
+		}
+
+		totalToPay := math.Max(roundMoney(order.Price-order.Discount), 0)
+		isPaid := roundMoney(paidAmount) >= totalToPay
+		if err := db.Model(&models.Order{}).Where("id = ?", order.ID).Updates(map[string]any{
+			"prepayment": roundMoney(paidAmount),
+			"is_paid":    isPaid,
+		}).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func roundMoney(value float64) float64 {
+	return math.Round(value*100) / 100
 }
