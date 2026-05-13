@@ -50,7 +50,7 @@ func registerRoutes(
 		protected.PUT("/orders/:id", orderHandler.UpdateOrder)
 		protected.PATCH("/orders/:id/status", orderHandler.UpdateOrderStatus)
 		protected.POST("/orders/:id/payments", orderHandler.AddOrderPayment)
-		protected.POST("/orders/:id/payments/:paymentId/reverse", orderHandler.ReverseOrderPayment)
+		protected.DELETE("/orders/:id/payments/:paymentId", orderHandler.DeleteOrderPayment)
 		protected.PATCH("/orders/:id/discounts", orderHandler.UpdateOrderDiscount)
 		protected.DELETE("/orders/:id", orderHandler.DeleteOrder)
 	}
