@@ -18,13 +18,6 @@ type Config struct {
 	DBPass          string
 	DBName          string
 	JWTSecret       string
-	Port            string
-	DBHost          string
-	DBPort          string
-	DBUser          string
-	DBPass          string
-	DBName          string
-	JWTSecret       string
 	FrontendOrigins []string
 }
 
