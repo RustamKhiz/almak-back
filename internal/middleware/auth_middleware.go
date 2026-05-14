@@ -1,4 +1,4 @@
-﻿package middleware
+package middleware
 
 import (
 	"fmt"
@@ -37,6 +37,10 @@ func AuthMiddleware(secret string) gin.HandlerFunc {
 		}
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
+			if tokenType, _ := claims["type"].(string); tokenType != "" && tokenType != "access" {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "невалидный токен"})
+				return
+			}
 			c.Set("user_id", claims["sub"])
 			c.Set("login", claims["login"])
 		}

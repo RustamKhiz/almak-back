@@ -39,6 +39,7 @@ func registerRoutes(
 	orderHandler *handlers.OrderHandler,
 ) {
 	group.POST("/login", authHandler.Login)
+	group.POST("/refresh", authHandler.Refresh)
 
 	protected := group.Group("/")
 	protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
@@ -48,6 +49,9 @@ func registerRoutes(
 		protected.GET("/orders/:id", orderHandler.GetOrderByID)
 		protected.PUT("/orders/:id", orderHandler.UpdateOrder)
 		protected.PATCH("/orders/:id/status", orderHandler.UpdateOrderStatus)
+		protected.POST("/orders/:id/payments", orderHandler.AddOrderPayment)
+		protected.POST("/orders/:id/payments/:paymentId/reverse", orderHandler.ReverseOrderPayment)
+		protected.PATCH("/orders/:id/discounts", orderHandler.UpdateOrderDiscount)
 		protected.DELETE("/orders/:id", orderHandler.DeleteOrder)
 	}
 }
