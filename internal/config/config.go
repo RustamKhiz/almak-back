@@ -1,4 +1,4 @@
-﻿package config
+package config
 
 import (
 	"fmt"
@@ -9,13 +9,13 @@ import (
 )
 
 type Config struct {
-	Port      string
-	DBHost    string
-	DBPort    string
-	DBUser    string
-	DBPass    string
-	DBName    string
-	JWTSecret string
+	Port            string
+	DBHost          string
+	DBPort          string
+	DBUser          string
+	DBPass          string
+	DBName          string
+	JWTSecret       string
 	FrontendOrigins []string
 }
 
@@ -28,13 +28,13 @@ func LoadConfig() (Config, error) {
 	}
 
 	cfg := Config{
-		Port:      getEnv("PORT", "8080"),
-		DBHost:    os.Getenv("DB_HOST"),
-		DBPort:    os.Getenv("DB_PORT"),
-		DBUser:    os.Getenv("DB_USER"),
-		DBPass:    os.Getenv("DB_PASSWORD"),
-		DBName:    os.Getenv("DB_NAME"),
-		JWTSecret: os.Getenv("JWT_SECRET"),
+		Port:            getEnv("PORT", "8080"),
+		DBHost:          os.Getenv("DB_HOST"),
+		DBPort:          os.Getenv("DB_PORT"),
+		DBUser:          os.Getenv("DB_USER"),
+		DBPass:          os.Getenv("DB_PASSWORD"),
+		DBName:          os.Getenv("DB_NAME"),
+		JWTSecret:       os.Getenv("JWT_SECRET"),
 		FrontendOrigins: getFrontendOrigins(),
 	}
 
@@ -50,6 +50,10 @@ func getFrontendOrigins() []string {
 	if strings.TrimSpace(raw) == "" {
 		return []string{
 			"http://localhost:4200",
+			"https://almakk.ru",
+			"http://almakk.ru",
+			"https://www.almakk.ru",
+			"http://www.almakk.ru",
 			"http://109.196.100.71",
 		}
 	}
