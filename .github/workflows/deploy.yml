@@ -44,6 +44,12 @@ jobs:
             sudo mv /tmp/myapp-backend /opt/myapp/backend/myapp-backend &&
             sudo chown myapp:myapp /opt/myapp/backend/myapp-backend &&
             sudo chmod 750 /opt/myapp/backend/myapp-backend &&
+            sudo mkdir -p /etc/myapp &&
+            if sudo grep -q '^FRONTEND_ORIGINS=' /etc/myapp/backend.env; then
+              sudo sed -i 's#^FRONTEND_ORIGINS=.*#FRONTEND_ORIGINS=https://almakk.ru,http://almakk.ru,https://www.almakk.ru,http://www.almakk.ru,http://5.42.120.239#' /etc/myapp/backend.env;
+            else
+              echo 'FRONTEND_ORIGINS=https://almakk.ru,http://almakk.ru,https://www.almakk.ru,http://www.almakk.ru,http://5.42.120.239' | sudo tee -a /etc/myapp/backend.env > /dev/null;
+            fi &&
             sudo systemctl daemon-reload &&
             sudo systemctl restart myapp-backend &&
             sudo systemctl status myapp-backend --no-pager
