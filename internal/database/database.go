@@ -117,10 +117,22 @@ func ensureLegacySchemaCompatibility(db *gorm.DB) error {
 			normalizeSQL: `UPDATE "entrance_doors" SET "leaf_type" = 'Single' WHERE "leaf_type" IS NULL OR BTRIM("leaf_type") = ''`,
 		},
 		{
+			table:        "entrance_doors",
+			column:       "opening",
+			addSQL:       `ALTER TABLE "entrance_doors" ADD COLUMN "opening" text`,
+			normalizeSQL: `UPDATE "entrance_doors" SET "opening" = 'left' WHERE "opening" IS NULL OR BTRIM("opening") = ''`,
+		},
+		{
 			table:        "panelings",
 			column:       "width",
 			addSQL:       `ALTER TABLE "panelings" ADD COLUMN "width" bigint`,
 			normalizeSQL: `UPDATE "panelings" SET "width" = 1 WHERE "width" IS NULL OR "width" <= 0`,
+		},
+		{
+			table:        "moldings",
+			column:       "frame_threshold_count",
+			addSQL:       `ALTER TABLE "moldings" ADD COLUMN "frame_threshold_count" bigint`,
+			normalizeSQL: `UPDATE "moldings" SET "frame_threshold_count" = GREATEST(0, ROUND(MOD("frame_count"::numeric, 2.5) / 0.5)::bigint) WHERE "frame_threshold_count" IS NULL OR "frame_threshold_count" < 0`,
 		},
 		{
 			table:        "panelings",

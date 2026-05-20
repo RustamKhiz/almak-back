@@ -35,6 +35,7 @@ type interiorDoorRequest struct {
 }
 type entranceDoorRequest struct {
 	Kind        string  `json:"kind" binding:"required"`
+	Opening     string  `json:"opening" binding:"required"`
 	LeafType    string  `json:"leafType" binding:"required"`
 	Model       string  `json:"model" binding:"required"`
 	Width       int     `json:"width" binding:"required"`
@@ -48,19 +49,20 @@ type entranceDoorRequest struct {
 	Comment     string  `json:"comment"`
 }
 type moldingRequest struct {
-	FrameLength    *int     `json:"frameLength"`
-	FramePrice     *float64 `json:"framePrice"`
-	FrameCount     float64  `json:"frameCount" binding:"required"`
-	PlatbandType   string   `json:"platbandType" binding:"required"`
-	PlatbandFigure *string  `json:"platbandFigure"`
-	PlatbandLength *int     `json:"platbandLength"`
-	PlatbandPrice  float64  `json:"platbandPrice" binding:"required"`
-	PlatbandCount  float64  `json:"platbandCount" binding:"required"`
-	RebateBarCount int      `json:"rebateBarCount"`
-	RebateBarPrice float64  `json:"rebateBarPrice"`
-	Color          string   `json:"color" binding:"required"`
-	Covering       string   `json:"covering" binding:"required"`
-	Comment        string   `json:"comment"`
+	FrameLength         *int     `json:"frameLength"`
+	FramePrice          *float64 `json:"framePrice"`
+	FrameThresholdCount int      `json:"frameThresholdCount"`
+	FrameCount          float64  `json:"frameCount" binding:"required"`
+	PlatbandType        string   `json:"platbandType" binding:"required"`
+	PlatbandFigure      *string  `json:"platbandFigure"`
+	PlatbandLength      *int     `json:"platbandLength"`
+	PlatbandPrice       float64  `json:"platbandPrice" binding:"required"`
+	PlatbandCount       float64  `json:"platbandCount" binding:"required"`
+	RebateBarCount      int      `json:"rebateBarCount"`
+	RebateBarPrice      float64  `json:"rebateBarPrice"`
+	Color               string   `json:"color" binding:"required"`
+	Covering            string   `json:"covering" binding:"required"`
+	Comment             string   `json:"comment"`
 }
 type extensionRequest struct {
 	Color          string  `json:"color" binding:"required"`
@@ -588,7 +590,7 @@ func calculateOrderPrice(req orderRequest) float64 {
 		total += door.Price * float64(door.Count)
 	}
 	for _, item := range req.Moldings {
-		total += derefFloat64OrZero(item.FramePrice)*item.FrameCount + item.PlatbandPrice*item.PlatbandCount + item.RebateBarPrice*float64(item.RebateBarCount)
+		total += derefFloat64OrZero(item.FramePrice)*normalizeNonNegativeFloat64(item.FrameCount) + item.PlatbandPrice*normalizeNonNegativeFloat64(item.PlatbandCount) + item.RebateBarPrice*float64(normalizeNonNegativeInt(item.RebateBarCount))
 	}
 	for _, item := range req.Extensions {
 		total += normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea) * item.Price
@@ -633,14 +635,14 @@ func mapInteriorDoorsForCreate(doors []interiorDoorRequest) []models.InteriorDoo
 func mapEntranceDoorsForCreate(doors []entranceDoorRequest) []models.EntranceDoor {
 	result := make([]models.EntranceDoor, 0, len(doors))
 	for _, door := range doors {
-		result = append(result, models.EntranceDoor{Kind: strings.TrimSpace(door.Kind), LeafType: normalizeDoorLeafType(door.LeafType), Model: strings.TrimSpace(door.Model), Width: door.Width, Height: door.Height, Color: strings.TrimSpace(door.Color), Painting: normalizeOptionalString(door.Painting), PanelColor: normalizeOptionalString(door.PanelColor), HasPeephole: door.HasPeephole, Count: door.Count, Price: door.Price, Comment: strings.TrimSpace(door.Comment)})
+		result = append(result, models.EntranceDoor{Kind: strings.TrimSpace(door.Kind), Opening: normalizeEntranceDoorOpening(door.Opening), LeafType: normalizeDoorLeafType(door.LeafType), Model: strings.TrimSpace(door.Model), Width: door.Width, Height: door.Height, Color: strings.TrimSpace(door.Color), Painting: normalizeOptionalString(door.Painting), PanelColor: normalizeOptionalString(door.PanelColor), HasPeephole: door.HasPeephole, Count: door.Count, Price: door.Price, Comment: strings.TrimSpace(door.Comment)})
 	}
 	return result
 }
 func mapMoldingsForCreate(items []moldingRequest) []models.Molding {
 	result := make([]models.Molding, 0, len(items))
 	for _, item := range items {
-		result = append(result, models.Molding{FrameLength: normalizeOptionalInt(item.FrameLength), FramePrice: derefFloat64OrZero(item.FramePrice), FrameCount: item.FrameCount, PlatbandType: strings.TrimSpace(item.PlatbandType), PlatbandFigure: normalizeOptionalString(item.PlatbandFigure), PlatbandLength: normalizeOptionalInt(item.PlatbandLength), PlatbandPrice: item.PlatbandPrice, PlatbandCount: item.PlatbandCount, RebateBarCount: item.RebateBarCount, RebateBarPrice: item.RebateBarPrice, Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Comment: strings.TrimSpace(item.Comment)})
+		result = append(result, models.Molding{FrameLength: normalizeOptionalInt(item.FrameLength), FramePrice: derefFloat64OrZero(item.FramePrice), FrameThresholdCount: normalizeNonNegativeInt(item.FrameThresholdCount), FrameCount: normalizeNonNegativeFloat64(item.FrameCount), PlatbandType: strings.TrimSpace(item.PlatbandType), PlatbandFigure: normalizeOptionalString(item.PlatbandFigure), PlatbandLength: normalizeOptionalInt(item.PlatbandLength), PlatbandPrice: item.PlatbandPrice, PlatbandCount: normalizeNonNegativeFloat64(item.PlatbandCount), RebateBarCount: normalizeNonNegativeInt(item.RebateBarCount), RebateBarPrice: item.RebateBarPrice, Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Comment: strings.TrimSpace(item.Comment)})
 	}
 	return result
 }
@@ -714,6 +716,22 @@ func normalizeOptionalFloat64(value *float64) *float64 {
 	return &normalized
 }
 
+func normalizeNonNegativeInt(value int) int {
+	if value < 0 {
+		return 0
+	}
+
+	return value
+}
+
+func normalizeNonNegativeFloat64(value float64) float64 {
+	if value < 0 {
+		return 0
+	}
+
+	return value
+}
+
 func normalizeSecondLeafInt(leafType string, value *int) *int {
 	if leafType != "Double" || value == nil || *value <= 0 {
 		return nil
@@ -764,6 +782,14 @@ func normalizeDoorLeafType(value string) string {
 	}
 
 	return "Single"
+}
+
+func normalizeEntranceDoorOpening(value string) string {
+	if strings.EqualFold(strings.TrimSpace(value), "right") {
+		return "right"
+	}
+
+	return "left"
 }
 
 func normalizeExtensionQuantityPerSet(value float64) float64 {
