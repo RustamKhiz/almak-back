@@ -53,7 +53,8 @@ type Molding struct {
 	OrderID             uint    `json:"order_id" gorm:"index;not null"`
 	FrameLength         *int    `json:"frameLength"`
 	FramePrice          float64 `json:"framePrice" gorm:"not null"`
-	FrameSetCount       int     `json:"frameSetCount" gorm:"not null;default:1"`
+	FrameSetCount       int     `json:"frameSetCount" gorm:"not null;default:0"`
+	FrameBoxCount       int     `json:"frameBoxCount" gorm:"not null;default:0"`
 	FrameThresholdCount int     `json:"frameThresholdCount" gorm:"not null;default:0"`
 	FrameThresholdPrice float64 `json:"frameThresholdPrice" gorm:"not null;default:500"`
 	FrameCount          float64 `json:"frameCount" gorm:"not null"`

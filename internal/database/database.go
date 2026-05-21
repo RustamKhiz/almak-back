@@ -142,6 +142,12 @@ func ensureLegacySchemaCompatibility(db *gorm.DB) error {
 		},
 		{
 			table:        "moldings",
+			column:       "frame_box_count",
+			addSQL:       `ALTER TABLE "moldings" ADD COLUMN "frame_box_count" bigint`,
+			normalizeSQL: `UPDATE "moldings" SET "frame_box_count" = 0 WHERE "frame_box_count" IS NULL OR "frame_box_count" < 0`,
+		},
+		{
+			table:        "moldings",
 			column:       "frame_threshold_price",
 			addSQL:       `ALTER TABLE "moldings" ADD COLUMN "frame_threshold_price" double precision`,
 			normalizeSQL: `UPDATE "moldings" SET "frame_threshold_price" = 500 WHERE "frame_threshold_price" IS NULL OR "frame_threshold_price" <= 0`,
