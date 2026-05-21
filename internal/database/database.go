@@ -135,6 +135,18 @@ func ensureLegacySchemaCompatibility(db *gorm.DB) error {
 			normalizeSQL: `UPDATE "moldings" SET "frame_threshold_count" = GREATEST(0, ROUND(MOD("frame_count"::numeric, 2.5) / 0.5)::bigint) WHERE "frame_threshold_count" IS NULL OR "frame_threshold_count" < 0`,
 		},
 		{
+			table:        "moldings",
+			column:       "frame_set_count",
+			addSQL:       `ALTER TABLE "moldings" ADD COLUMN "frame_set_count" bigint`,
+			normalizeSQL: `UPDATE "moldings" SET "frame_set_count" = GREATEST(0, FLOOR("frame_count"::numeric / 2.5)::bigint) WHERE "frame_set_count" IS NULL OR "frame_set_count" < 0`,
+		},
+		{
+			table:        "moldings",
+			column:       "frame_threshold_price",
+			addSQL:       `ALTER TABLE "moldings" ADD COLUMN "frame_threshold_price" double precision`,
+			normalizeSQL: `UPDATE "moldings" SET "frame_threshold_price" = 500 WHERE "frame_threshold_price" IS NULL OR "frame_threshold_price" <= 0`,
+		},
+		{
 			table:        "panelings",
 			column:       "height",
 			addSQL:       `ALTER TABLE "panelings" ADD COLUMN "height" bigint`,

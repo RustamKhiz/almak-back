@@ -51,7 +51,9 @@ type entranceDoorRequest struct {
 type moldingRequest struct {
 	FrameLength         *int     `json:"frameLength"`
 	FramePrice          *float64 `json:"framePrice"`
+	FrameSetCount       int      `json:"frameSetCount"`
 	FrameThresholdCount int      `json:"frameThresholdCount"`
+	FrameThresholdPrice *float64 `json:"frameThresholdPrice"`
 	FrameCount          float64  `json:"frameCount" binding:"required"`
 	PlatbandType        string   `json:"platbandType" binding:"required"`
 	PlatbandFigure      *string  `json:"platbandFigure"`
@@ -590,7 +592,7 @@ func calculateOrderPrice(req orderRequest) float64 {
 		total += door.Price * float64(door.Count)
 	}
 	for _, item := range req.Moldings {
-		total += derefFloat64OrZero(item.FramePrice)*normalizeNonNegativeFloat64(item.FrameCount) + item.PlatbandPrice*normalizeNonNegativeFloat64(item.PlatbandCount) + item.RebateBarPrice*float64(normalizeNonNegativeInt(item.RebateBarCount))
+		total += derefFloat64OrZero(item.FramePrice)*float64(normalizeNonNegativeInt(item.FrameSetCount))*2.5 + normalizeFrameThresholdPrice(item.FrameThresholdPrice)*float64(normalizeNonNegativeInt(item.FrameThresholdCount)) + item.PlatbandPrice*normalizeNonNegativeFloat64(item.PlatbandCount) + item.RebateBarPrice*float64(normalizeNonNegativeInt(item.RebateBarCount))
 	}
 	for _, item := range req.Extensions {
 		total += normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea) * item.Price
@@ -642,7 +644,7 @@ func mapEntranceDoorsForCreate(doors []entranceDoorRequest) []models.EntranceDoo
 func mapMoldingsForCreate(items []moldingRequest) []models.Molding {
 	result := make([]models.Molding, 0, len(items))
 	for _, item := range items {
-		result = append(result, models.Molding{FrameLength: normalizeOptionalInt(item.FrameLength), FramePrice: derefFloat64OrZero(item.FramePrice), FrameThresholdCount: normalizeNonNegativeInt(item.FrameThresholdCount), FrameCount: normalizeNonNegativeFloat64(item.FrameCount), PlatbandType: strings.TrimSpace(item.PlatbandType), PlatbandFigure: normalizeOptionalString(item.PlatbandFigure), PlatbandLength: normalizeOptionalInt(item.PlatbandLength), PlatbandPrice: item.PlatbandPrice, PlatbandCount: normalizeNonNegativeFloat64(item.PlatbandCount), RebateBarCount: normalizeNonNegativeInt(item.RebateBarCount), RebateBarPrice: item.RebateBarPrice, Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Comment: strings.TrimSpace(item.Comment)})
+		result = append(result, models.Molding{FrameLength: normalizeOptionalInt(item.FrameLength), FramePrice: derefFloat64OrZero(item.FramePrice), FrameSetCount: normalizeNonNegativeInt(item.FrameSetCount), FrameThresholdCount: normalizeNonNegativeInt(item.FrameThresholdCount), FrameThresholdPrice: normalizeFrameThresholdPrice(item.FrameThresholdPrice), FrameCount: normalizeNonNegativeFloat64(item.FrameCount), PlatbandType: strings.TrimSpace(item.PlatbandType), PlatbandFigure: normalizeOptionalString(item.PlatbandFigure), PlatbandLength: normalizeOptionalInt(item.PlatbandLength), PlatbandPrice: item.PlatbandPrice, PlatbandCount: normalizeNonNegativeFloat64(item.PlatbandCount), RebateBarCount: normalizeNonNegativeInt(item.RebateBarCount), RebateBarPrice: item.RebateBarPrice, Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Comment: strings.TrimSpace(item.Comment)})
 	}
 	return result
 }
@@ -730,6 +732,18 @@ func normalizeNonNegativeFloat64(value float64) float64 {
 	}
 
 	return value
+}
+
+func normalizeFrameThresholdPrice(value *float64) float64 {
+	if value == nil {
+		return 500
+	}
+
+	if *value < 0 {
+		return 0
+	}
+
+	return *value
 }
 
 func normalizeSecondLeafInt(leafType string, value *int) *int {
