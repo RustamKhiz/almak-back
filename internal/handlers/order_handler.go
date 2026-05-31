@@ -55,12 +55,12 @@ type moldingRequest struct {
 	FrameBoxCount       int      `json:"frameBoxCount"`
 	FrameThresholdCount int      `json:"frameThresholdCount"`
 	FrameThresholdPrice *float64 `json:"frameThresholdPrice"`
-	FrameCount          float64  `json:"frameCount" binding:"required"`
+	FrameCount          float64  `json:"frameCount"`
 	PlatbandType        string   `json:"platbandType" binding:"required"`
 	PlatbandFigure      *string  `json:"platbandFigure"`
 	PlatbandLength      *int     `json:"platbandLength"`
-	PlatbandPrice       float64  `json:"platbandPrice" binding:"required"`
-	PlatbandCount       float64  `json:"platbandCount" binding:"required"`
+	PlatbandPrice       float64  `json:"platbandPrice"`
+	PlatbandCount       float64  `json:"platbandCount"`
 	RebateBarCount      int      `json:"rebateBarCount"`
 	RebateBarPrice      float64  `json:"rebateBarPrice"`
 	Color               string   `json:"color" binding:"required"`
