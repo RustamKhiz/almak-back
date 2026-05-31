@@ -2,7 +2,7 @@ name: Deploy Backend
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   deploy:
@@ -22,7 +22,9 @@ jobs:
 
       - name: Build Linux binary
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o myapp-backend ./cmd/main.go
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o myapp-backend ./cmd/main.go
+          gzip -9 -c myapp-backend > myapp-backend.gz
+          ls -lh myapp-backend myapp-backend.gz
 
       - name: Setup SSH
         run: |
@@ -35,16 +37,23 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
 
       - name: Upload binary
+        timeout-minutes: 5
         run: |
-          scp -i ~/.ssh/id_ed25519 ./myapp-backend ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/myapp-backend
+          rsync -av --partial --timeout=120 --info=progress2 -e "ssh -i ~/.ssh/id_ed25519" \
+            ./myapp-backend.gz \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/myapp-backend.gz
 
       - name: Deploy on server
         run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-            sudo mv /tmp/myapp-backend /opt/myapp/backend/myapp-backend &&
-            sudo chown myapp:myapp /opt/myapp/backend/myapp-backend &&
-            sudo chmod 750 /opt/myapp/backend/myapp-backend &&
-            sudo systemctl daemon-reload &&
-            sudo systemctl restart myapp-backend &&
-            sudo systemctl status myapp-backend --no-pager
-          "
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} 'bash -s' <<'EOF'
+          set -euo pipefail
+
+          gzip -dc /tmp/myapp-backend.gz > /tmp/myapp-backend
+          sudo mv /tmp/myapp-backend /opt/myapp/backend/myapp-backend
+          rm -f /tmp/myapp-backend.gz
+          sudo chown myapp:myapp /opt/myapp/backend/myapp-backend
+          sudo chmod 750 /opt/myapp/backend/myapp-backend
+          sudo systemctl daemon-reload
+          sudo systemctl restart myapp-backend
+          sudo systemctl status myapp-backend --no-pager
+          EOF
