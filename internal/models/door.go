@@ -9,6 +9,7 @@ import (
 type InteriorDoor struct {
 	ID           uint     `json:"id" gorm:"primaryKey"`
 	OrderID      uint     `json:"order_id" gorm:"index;not null"`
+	Supplier     string   `json:"supplier"`
 	Model        string   `json:"model" gorm:"not null"`
 	Color        string   `json:"color" gorm:"not null"`
 	Price        float64  `json:"price" gorm:"not null"`
@@ -31,6 +32,7 @@ func (InteriorDoor) TableName() string { return "interior_doors" }
 type EntranceDoor struct {
 	ID          uint    `json:"id" gorm:"primaryKey"`
 	OrderID     uint    `json:"order_id" gorm:"index;not null"`
+	Supplier    string  `json:"supplier"`
 	Kind        string  `json:"kind" gorm:"not null"`
 	Opening     string  `json:"opening" gorm:"not null;default:left"`
 	LeafType    string  `json:"leafType" gorm:"not null;default:Single"`
@@ -49,25 +51,28 @@ type EntranceDoor struct {
 func (EntranceDoor) TableName() string { return "entrance_doors" }
 
 type Molding struct {
-	ID                  uint    `json:"id" gorm:"primaryKey"`
-	OrderID             uint    `json:"order_id" gorm:"index;not null"`
-	FrameLength         *int    `json:"frameLength"`
-	FramePrice          float64 `json:"framePrice" gorm:"not null"`
-	FrameSetCount       int     `json:"frameSetCount" gorm:"not null;default:0"`
-	FrameBoxCount       int     `json:"frameBoxCount" gorm:"not null;default:0"`
-	FrameThresholdCount int     `json:"frameThresholdCount" gorm:"not null;default:0"`
-	FrameThresholdPrice float64 `json:"frameThresholdPrice" gorm:"not null;default:500"`
-	FrameCount          float64 `json:"frameCount" gorm:"not null"`
-	PlatbandType        string  `json:"platbandType" gorm:"not null"`
-	PlatbandFigure      *string `json:"platbandFigure"`
-	PlatbandLength      *int    `json:"platbandLength"`
-	PlatbandPrice       float64 `json:"platbandPrice"`
-	PlatbandCount       float64 `json:"platbandCount" gorm:"not null"`
-	RebateBarCount      int     `json:"rebateBarCount" gorm:"not null;default:0"`
-	RebateBarPrice      float64 `json:"rebateBarPrice" gorm:"not null;default:0"`
-	Color               string  `json:"color" gorm:"not null"`
-	Covering            string  `json:"covering" gorm:"not null;default:Enamel"`
-	Comment             string  `json:"comment"`
+	ID                     uint    `json:"id" gorm:"primaryKey"`
+	OrderID                uint    `json:"order_id" gorm:"index;not null"`
+	Supplier               string  `json:"supplier"`
+	FrameLength            *int    `json:"frameLength"`
+	FramePrice             float64 `json:"framePrice" gorm:"not null"`
+	FrameSetCount          int     `json:"frameSetCount" gorm:"not null;default:0"`
+	FrameBoxCount          int     `json:"frameBoxCount" gorm:"not null;default:0"`
+	FrameThresholdCount    int     `json:"frameThresholdCount" gorm:"not null;default:0"`
+	FrameThresholdPrice    float64 `json:"frameThresholdPrice" gorm:"not null;default:500"`
+	FrameCount             float64 `json:"frameCount" gorm:"not null"`
+	PlatbandType           string  `json:"platbandType" gorm:"not null"`
+	PlatbandFigure         *string `json:"platbandFigure"`
+	PlatbandLength         *int    `json:"platbandLength"`
+	PlatbandPrice          float64 `json:"platbandPrice"`
+	PlatbandSetCount       int     `json:"platbandSetCount" gorm:"not null;default:0"`
+	PlatbandCount          float64 `json:"platbandCount" gorm:"not null"`
+	PlatbandDeductionPrice float64 `json:"platbandDeductionPrice" gorm:"not null;default:0"`
+	RebateBarCount         int     `json:"rebateBarCount" gorm:"not null;default:0"`
+	RebateBarPrice         float64 `json:"rebateBarPrice" gorm:"not null;default:0"`
+	Color                  string  `json:"color" gorm:"not null"`
+	Covering               string  `json:"covering" gorm:"not null;default:Enamel"`
+	Comment                string  `json:"comment"`
 }
 
 func (Molding) TableName() string { return "moldings" }
@@ -75,6 +80,7 @@ func (Molding) TableName() string { return "moldings" }
 type Extension struct {
 	ID             uint    `json:"id" gorm:"primaryKey"`
 	OrderID        uint    `json:"order_id" gorm:"index;not null"`
+	Supplier       string  `json:"supplier"`
 	Color          string  `json:"color" gorm:"not null"`
 	Covering       string  `json:"covering" gorm:"not null;default:Enamel"`
 	Width          int     `json:"width" gorm:"not null"`
@@ -91,6 +97,7 @@ func (Extension) TableName() string { return "extensions" }
 type Capital struct {
 	ID       uint    `json:"id" gorm:"primaryKey"`
 	OrderID  uint    `json:"order_id" gorm:"index;not null"`
+	Supplier string  `json:"supplier"`
 	Name     string  `json:"name" gorm:"not null"`
 	Color    string  `json:"color" gorm:"not null"`
 	Covering string  `json:"covering" gorm:"not null;default:Enamel"`
@@ -106,6 +113,7 @@ func (Capital) TableName() string { return "capitals" }
 type Paneling struct {
 	ID             uint    `json:"id" gorm:"primaryKey"`
 	OrderID        uint    `json:"order_id" gorm:"index;not null"`
+	Supplier       string  `json:"supplier"`
 	Color          string  `json:"color" gorm:"not null"`
 	Size           string  `json:"size" gorm:"not null"`
 	Width          int     `json:"width" gorm:"not null"`
@@ -156,6 +164,7 @@ func (sizes *Sizes) Scan(value any) error {
 type Hardware struct {
 	ID              uint     `json:"id" gorm:"primaryKey"`
 	OrderID         uint     `json:"order_id" gorm:"index;not null"`
+	Supplier        string   `json:"supplier"`
 	HandleModel     *string  `json:"handleModel"`
 	HandleColor     *string  `json:"handleColor"`
 	HandleCount     *int     `json:"handleCount"`
