@@ -18,7 +18,8 @@ func NewCatalogHandler() *CatalogHandler {
 }
 
 type catalogRequest struct {
-	Name string `json:"name" binding:"required"`
+	Name string  `json:"name" binding:"required"`
+	Key  *string `json:"key"`
 }
 
 type catalogItemRequest struct {
@@ -26,9 +27,10 @@ type catalogItemRequest struct {
 }
 
 type catalogResponse struct {
-	ID         uint   `json:"id"`
-	Name       string `json:"name"`
-	ItemsCount int64  `json:"itemsCount"`
+	ID         uint    `json:"id"`
+	Key        *string `json:"key"`
+	Name       string  `json:"name"`
+	ItemsCount int64   `json:"itemsCount"`
 }
 
 func (h *CatalogHandler) GetCatalogs(c *gin.Context) {
@@ -42,7 +44,7 @@ func (h *CatalogHandler) GetCatalogs(c *gin.Context) {
 	for _, cat := range catalogs {
 		var count int64
 		database.DB.Model(&models.CatalogItem{}).Where("catalog_id = ?", cat.ID).Count(&count)
-		result = append(result, catalogResponse{ID: cat.ID, Name: cat.Name, ItemsCount: count})
+		result = append(result, catalogResponse{ID: cat.ID, Key: cat.Key, Name: cat.Name, ItemsCount: count})
 	}
 	c.JSON(http.StatusOK, result)
 }
@@ -59,12 +61,20 @@ func (h *CatalogHandler) CreateCatalog(c *gin.Context) {
 		return
 	}
 
-	catalog := models.Catalog{Name: name}
+	var key *string
+	if req.Key != nil {
+		trimmed := strings.TrimSpace(*req.Key)
+		if trimmed != "" {
+			key = &trimmed
+		}
+	}
+
+	catalog := models.Catalog{Name: name, Key: key}
 	if err := database.DB.Create(&catalog).Error; err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "Catalog with this name already exists"})
 		return
 	}
-	c.JSON(http.StatusCreated, catalogResponse{ID: catalog.ID, Name: catalog.Name, ItemsCount: 0})
+	c.JSON(http.StatusCreated, catalogResponse{ID: catalog.ID, Key: catalog.Key, Name: catalog.Name, ItemsCount: 0})
 }
 
 func (h *CatalogHandler) UpdateCatalog(c *gin.Context) {
@@ -90,6 +100,14 @@ func (h *CatalogHandler) UpdateCatalog(c *gin.Context) {
 		return
 	}
 	catalog.Name = name
+	if req.Key != nil {
+		trimmed := strings.TrimSpace(*req.Key)
+		if trimmed != "" {
+			catalog.Key = &trimmed
+		} else {
+			catalog.Key = nil
+		}
+	}
 	if err := database.DB.Save(&catalog).Error; err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "Catalog with this name already exists"})
 		return
@@ -97,7 +115,7 @@ func (h *CatalogHandler) UpdateCatalog(c *gin.Context) {
 
 	var count int64
 	database.DB.Model(&models.CatalogItem{}).Where("catalog_id = ?", catalog.ID).Count(&count)
-	c.JSON(http.StatusOK, catalogResponse{ID: catalog.ID, Name: catalog.Name, ItemsCount: count})
+	c.JSON(http.StatusOK, catalogResponse{ID: catalog.ID, Key: catalog.Key, Name: catalog.Name, ItemsCount: count})
 }
 
 func (h *CatalogHandler) DeleteCatalog(c *gin.Context) {
@@ -111,6 +129,25 @@ func (h *CatalogHandler) DeleteCatalog(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func (h *CatalogHandler) GetCatalogItemsByKey(c *gin.Context) {
+	key := strings.TrimSpace(c.Param("key"))
+	if key == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid key"})
+		return
+	}
+	var catalog models.Catalog
+	if err := database.DB.Where("key = ?", key).First(&catalog).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Catalog not found"})
+		return
+	}
+	var items []models.CatalogItem
+	if err := database.DB.Where("catalog_id = ?", catalog.ID).Find(&items).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch items"})
+		return
+	}
+	c.JSON(http.StatusOK, items)
 }
 
 func (h *CatalogHandler) GetCatalogItems(c *gin.Context) {

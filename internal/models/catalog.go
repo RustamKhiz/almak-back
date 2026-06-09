@@ -4,6 +4,7 @@ import "time"
 
 type Catalog struct {
 	ID        uint          `json:"id" gorm:"primaryKey"`
+	Key       *string       `json:"key" gorm:"uniqueIndex"`
 	Name      string        `json:"name" gorm:"not null;uniqueIndex"`
 	Items     []CatalogItem `json:"items,omitempty" gorm:"foreignKey:CatalogID;constraint:OnDelete:CASCADE"`
 	CreatedAt time.Time     `json:"created_at"`

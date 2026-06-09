@@ -60,6 +60,7 @@ func registerRoutes(
 		protected.POST("/catalogs", catalogHandler.CreateCatalog)
 		protected.PUT("/catalogs/:id", catalogHandler.UpdateCatalog)
 		protected.DELETE("/catalogs/:id", catalogHandler.DeleteCatalog)
+		protected.GET("/catalogs/key/:key/items", catalogHandler.GetCatalogItemsByKey)
 		protected.GET("/catalogs/:id/items", catalogHandler.GetCatalogItems)
 		protected.POST("/catalogs/:id/items", catalogHandler.CreateCatalogItem)
 		protected.PUT("/catalogs/:id/items/:itemId", catalogHandler.UpdateCatalogItem)
