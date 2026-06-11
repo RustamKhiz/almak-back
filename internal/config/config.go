@@ -1,4 +1,4 @@
-﻿package config
+package config
 
 import (
 	"errors"
@@ -58,6 +58,10 @@ func getFrontendOrigins() []string {
 	if strings.TrimSpace(raw) == "" {
 		return []string{
 			"http://localhost:4200",
+			"https://almakk.ru",
+			"http://almakk.ru",
+			"https://www.almakk.ru",
+			"http://www.almakk.ru",
 			"http://5.42.120.239",
 		}
 	}

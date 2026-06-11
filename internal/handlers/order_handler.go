@@ -17,6 +17,7 @@ import (
 type OrderHandler struct{}
 
 type interiorDoorRequest struct {
+	Supplier     string   `json:"supplier"`
 	Model        string   `json:"model" binding:"required"`
 	Color        string   `json:"color" binding:"required"`
 	Price        float64  `json:"price" binding:"required"`
@@ -34,7 +35,9 @@ type interiorDoorRequest struct {
 	Comment      string   `json:"comment"`
 }
 type entranceDoorRequest struct {
+	Supplier    string  `json:"supplier"`
 	Kind        string  `json:"kind" binding:"required"`
+	Opening     string  `json:"opening" binding:"required"`
 	LeafType    string  `json:"leafType" binding:"required"`
 	Model       string  `json:"model" binding:"required"`
 	Width       int     `json:"width" binding:"required"`
@@ -48,35 +51,41 @@ type entranceDoorRequest struct {
 	Comment     string  `json:"comment"`
 }
 type moldingRequest struct {
-	FrameLength      *int     `json:"frameLength"`
-	FramePrice       *float64 `json:"framePrice"`
-	FrameSetCount    float64  `json:"frameSetCount"`
-	FrameCount       float64  `json:"frameCount" binding:"required"`
-	PlatbandType     string   `json:"platbandType" binding:"required"`
-	PlatbandFigure   *string  `json:"platbandFigure"`
-	PlatbandLength   *int     `json:"platbandLength"`
-	PlatbandPrice    float64  `json:"platbandPrice" binding:"required"`
-	PlatbandSetCount float64  `json:"platbandSetCount"`
-	PlatbandCount    float64  `json:"platbandCount" binding:"required"`
-	RebateBarCount   int      `json:"rebateBarCount"`
-	RebateBarPrice   float64  `json:"rebateBarPrice"`
-	Color            string   `json:"color" binding:"required"`
-	Covering         string   `json:"covering" binding:"required"`
-	Comment          string   `json:"comment"`
+	Supplier               string   `json:"supplier"`
+	FrameLength            *int     `json:"frameLength"`
+	FramePrice             *float64 `json:"framePrice"`
+	FrameSetCount          int      `json:"frameSetCount"`
+	FrameBoxCount          int      `json:"frameBoxCount"`
+	FrameThresholdCount    int      `json:"frameThresholdCount"`
+	FrameThresholdPrice    *float64 `json:"frameThresholdPrice"`
+	FrameCount             float64  `json:"frameCount"`
+	PlatbandType           string   `json:"platbandType" binding:"required"`
+	PlatbandFigure         *string  `json:"platbandFigure"`
+	PlatbandLength         *int     `json:"platbandLength"`
+	PlatbandPrice          float64  `json:"platbandPrice"`
+	PlatbandSetCount       int      `json:"platbandSetCount"`
+	PlatbandCount          float64  `json:"platbandCount"`
+	PlatbandDeductionPrice float64  `json:"platbandDeductionPrice"`
+	RebateBarCount         int      `json:"rebateBarCount"`
+	RebateBarPrice         float64  `json:"rebateBarPrice"`
+	Color                  string   `json:"color" binding:"required"`
+	Covering               string   `json:"covering" binding:"required"`
+	Comment                string   `json:"comment"`
 }
 type extensionRequest struct {
+	Supplier       string  `json:"supplier"`
 	Color          string  `json:"color" binding:"required"`
 	Covering       string  `json:"covering" binding:"required"`
 	Width          int     `json:"width" binding:"required"`
 	Height         int     `json:"height" binding:"required"`
-	SetCount       float64 `json:"setCount"`
-	QuantityPerSet float64 `json:"quantityPerSet" binding:"required"`
-	TotalArea      float64 `json:"totalArea" binding:"required"`
+	QuantityPerSet float64 `json:"quantityPerSet"`
+	TotalArea      float64 `json:"totalArea"`
 	Comment        string  `json:"comment"`
 	Count          float64 `json:"count" binding:"required"`
 	Price          float64 `json:"price" binding:"required"`
 }
 type capitalRequest struct {
+	Supplier string  `json:"supplier"`
 	Name     string  `json:"name" binding:"required"`
 	Color    string  `json:"color" binding:"required"`
 	Covering string  `json:"covering" binding:"required"`
@@ -87,6 +96,7 @@ type capitalRequest struct {
 	Count    int     `json:"count" binding:"required"`
 }
 type hardwareRequest struct {
+	Supplier        string   `json:"supplier"`
 	HandleModel     *string  `json:"handleModel"`
 	HandleColor     *string  `json:"handleColor"`
 	HandleCount     *int     `json:"handleCount"`
@@ -112,6 +122,7 @@ type hardwareRequest struct {
 	Comment         string   `json:"comment"`
 }
 type panelingRequest struct {
+	Supplier       string        `json:"supplier"`
 	Color          string        `json:"color" binding:"required"`
 	Width          int           `json:"width"`
 	Height         int           `json:"height"`
@@ -642,7 +653,7 @@ func calculateOrderPrice(req orderRequest) float64 {
 		total += door.Price * float64(door.Count)
 	}
 	for _, item := range req.Moldings {
-		total += derefFloat64OrZero(item.FramePrice)*item.FrameCount + item.PlatbandPrice*item.PlatbandCount + item.RebateBarPrice*float64(item.RebateBarCount)
+		total += derefFloat64OrZero(item.FramePrice)*float64(normalizeNonNegativeInt(item.FrameBoxCount)) + (item.PlatbandPrice-normalizeNonNegativeFloat64(item.PlatbandDeductionPrice))*normalizeNonNegativeFloat64(item.PlatbandCount) + item.RebateBarPrice*float64(normalizeNonNegativeInt(item.RebateBarCount))
 	}
 	for _, item := range req.Extensions {
 		total += normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea) * item.Price
@@ -680,35 +691,35 @@ func mapInteriorDoorsForCreate(doors []interiorDoorRequest) []models.InteriorDoo
 	result := make([]models.InteriorDoor, 0, len(doors))
 	for _, door := range doors {
 		leafType := normalizeDoorLeafType(door.LeafType)
-		result = append(result, models.InteriorDoor{Model: strings.TrimSpace(door.Model), Color: strings.TrimSpace(door.Color), Price: door.Price, Price2: normalizeSecondLeafFloat64(leafType, door.Price2), Width: door.Width, Width2: normalizeSecondLeafInt(leafType, door.Width2), Height: door.Height, Height2: normalizeSecondLeafInt(leafType, door.Height2), HasGlass: door.HasGlass, GlassComment: normalizeGlassComment(door.HasGlass, door.GlassComment), LeafType: leafType, Count: door.Count, Count2: normalizeSecondLeafInt(leafType, door.Count2), Covering: door.Covering, Comment: strings.TrimSpace(door.Comment)})
+		result = append(result, models.InteriorDoor{Supplier: strings.TrimSpace(door.Supplier), Model: strings.TrimSpace(door.Model), Color: strings.TrimSpace(door.Color), Price: door.Price, Price2: normalizeSecondLeafFloat64(leafType, door.Price2), Width: door.Width, Width2: normalizeSecondLeafInt(leafType, door.Width2), Height: door.Height, Height2: normalizeSecondLeafInt(leafType, door.Height2), HasGlass: door.HasGlass, GlassComment: normalizeGlassComment(door.HasGlass, door.GlassComment), LeafType: leafType, Count: door.Count, Count2: normalizeSecondLeafInt(leafType, door.Count2), Covering: door.Covering, Comment: strings.TrimSpace(door.Comment)})
 	}
 	return result
 }
 func mapEntranceDoorsForCreate(doors []entranceDoorRequest) []models.EntranceDoor {
 	result := make([]models.EntranceDoor, 0, len(doors))
 	for _, door := range doors {
-		result = append(result, models.EntranceDoor{Kind: strings.TrimSpace(door.Kind), LeafType: normalizeDoorLeafType(door.LeafType), Model: strings.TrimSpace(door.Model), Width: door.Width, Height: door.Height, Color: strings.TrimSpace(door.Color), Painting: normalizeOptionalString(door.Painting), PanelColor: normalizeOptionalString(door.PanelColor), HasPeephole: door.HasPeephole, Count: door.Count, Price: door.Price, Comment: strings.TrimSpace(door.Comment)})
+		result = append(result, models.EntranceDoor{Supplier: strings.TrimSpace(door.Supplier), Kind: strings.TrimSpace(door.Kind), Opening: normalizeEntranceDoorOpening(door.Opening), LeafType: normalizeDoorLeafType(door.LeafType), Model: strings.TrimSpace(door.Model), Width: door.Width, Height: door.Height, Color: strings.TrimSpace(door.Color), Painting: normalizeOptionalString(door.Painting), PanelColor: normalizeOptionalString(door.PanelColor), HasPeephole: door.HasPeephole, Count: door.Count, Price: door.Price, Comment: strings.TrimSpace(door.Comment)})
 	}
 	return result
 }
 func mapMoldingsForCreate(items []moldingRequest) []models.Molding {
 	result := make([]models.Molding, 0, len(items))
 	for _, item := range items {
-		result = append(result, models.Molding{FrameLength: normalizeOptionalInt(item.FrameLength), FramePrice: derefFloat64OrZero(item.FramePrice), FrameSetCount: normalizeSetCount(item.FrameSetCount, item.FrameCount), FrameCount: item.FrameCount, PlatbandType: strings.TrimSpace(item.PlatbandType), PlatbandFigure: normalizeOptionalString(item.PlatbandFigure), PlatbandLength: normalizeOptionalInt(item.PlatbandLength), PlatbandPrice: item.PlatbandPrice, PlatbandSetCount: normalizeSetCount(item.PlatbandSetCount, item.PlatbandCount), PlatbandCount: item.PlatbandCount, RebateBarCount: item.RebateBarCount, RebateBarPrice: item.RebateBarPrice, Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Comment: strings.TrimSpace(item.Comment)})
+		result = append(result, models.Molding{Supplier: strings.TrimSpace(item.Supplier), FrameLength: normalizeOptionalInt(item.FrameLength), FramePrice: derefFloat64OrZero(item.FramePrice), FrameSetCount: normalizeNonNegativeInt(item.FrameSetCount), FrameBoxCount: normalizeNonNegativeInt(item.FrameBoxCount), FrameThresholdCount: 0, FrameThresholdPrice: 0, FrameCount: normalizeFrameCount(item.FrameSetCount, item.FrameBoxCount), PlatbandType: strings.TrimSpace(item.PlatbandType), PlatbandFigure: normalizeOptionalString(item.PlatbandFigure), PlatbandLength: normalizeOptionalInt(item.PlatbandLength), PlatbandPrice: item.PlatbandPrice, PlatbandSetCount: normalizeNonNegativeInt(item.PlatbandSetCount), PlatbandCount: normalizeNonNegativeFloat64(item.PlatbandCount), PlatbandDeductionPrice: normalizeFigurePlatbandDeduction(item.PlatbandType, item.PlatbandDeductionPrice), RebateBarCount: normalizeNonNegativeInt(item.RebateBarCount), RebateBarPrice: item.RebateBarPrice, Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Comment: strings.TrimSpace(item.Comment)})
 	}
 	return result
 }
 func mapExtensionsForCreate(items []extensionRequest) []models.Extension {
 	result := make([]models.Extension, 0, len(items))
 	for _, item := range items {
-		result = append(result, models.Extension{Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Width: item.Width, Height: item.Height, SetCount: normalizeSetCount(item.SetCount, item.QuantityPerSet), QuantityPerSet: normalizeExtensionQuantityPerSet(item.QuantityPerSet), TotalArea: normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea), Comment: strings.TrimSpace(item.Comment), Count: 1, Price: item.Price})
+		result = append(result, models.Extension{Supplier: strings.TrimSpace(item.Supplier), Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Width: item.Width, Height: item.Height, QuantityPerSet: normalizeExtensionQuantityPerSet(item.QuantityPerSet), TotalArea: normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea), Comment: strings.TrimSpace(item.Comment), Count: 1, Price: item.Price})
 	}
 	return result
 }
 func mapCapitalsForCreate(items []capitalRequest) []models.Capital {
 	result := make([]models.Capital, 0, len(items))
 	for _, item := range items {
-		result = append(result, models.Capital{Name: strings.TrimSpace(item.Name), Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Width: item.Width, Height: item.Height, Price: item.Price, Comment: strings.TrimSpace(item.Comment), Count: item.Count})
+		result = append(result, models.Capital{Supplier: strings.TrimSpace(item.Supplier), Name: strings.TrimSpace(item.Name), Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Width: item.Width, Height: item.Height, Price: item.Price, Comment: strings.TrimSpace(item.Comment), Count: item.Count})
 	}
 	return result
 }
@@ -718,7 +729,7 @@ func mapHardwaresForCreate(items []hardwareRequest) []models.Hardware {
 		if isHardwareEmpty(item) {
 			continue
 		}
-		result = append(result, models.Hardware{HandleModel: normalizeOptionalString(item.HandleModel), HandleColor: normalizeOptionalString(item.HandleColor), HandleCount: normalizeOptionalInt(item.HandleCount), HandlePrice: normalizeOptionalFloat64(item.HandlePrice), LockCount: normalizeOptionalInt(item.LockCount), LockPrice: normalizeOptionalFloat64(item.LockPrice), FixatorCount: normalizeOptionalInt(item.FixatorCount), FixatorPrice: normalizeOptionalFloat64(item.FixatorPrice), ClickCount: normalizeOptionalInt(item.ClickCount), ClickPrice: normalizeOptionalFloat64(item.ClickPrice), ThumbturnCount: normalizeOptionalInt(item.ThumbturnCount), ThumbturnPrice: normalizeOptionalFloat64(item.ThumbturnPrice), EscutcheonCount: normalizeOptionalInt(item.EscutcheonCount), EscutcheonPrice: normalizeOptionalFloat64(item.EscutcheonPrice), CylinderCount: normalizeOptionalInt(item.CylinderCount), CylinderPrice: normalizeOptionalFloat64(item.CylinderPrice), BoltCount: normalizeOptionalInt(item.BoltCount), BoltPrice: normalizeOptionalFloat64(item.BoltPrice), HingeCount: normalizeOptionalInt(item.HingeCount), HingePrice: normalizeOptionalFloat64(item.HingePrice), DoorStopCount: normalizeOptionalInt(item.DoorStopCount), DoorStopPrice: normalizeOptionalFloat64(item.DoorStopPrice), Comment: strings.TrimSpace(item.Comment)})
+		result = append(result, models.Hardware{Supplier: strings.TrimSpace(item.Supplier), HandleModel: normalizeOptionalString(item.HandleModel), HandleColor: normalizeOptionalString(item.HandleColor), HandleCount: normalizeOptionalInt(item.HandleCount), HandlePrice: normalizeOptionalFloat64(item.HandlePrice), LockCount: normalizeOptionalInt(item.LockCount), LockPrice: normalizeOptionalFloat64(item.LockPrice), FixatorCount: normalizeOptionalInt(item.FixatorCount), FixatorPrice: normalizeOptionalFloat64(item.FixatorPrice), ClickCount: normalizeOptionalInt(item.ClickCount), ClickPrice: normalizeOptionalFloat64(item.ClickPrice), ThumbturnCount: normalizeOptionalInt(item.ThumbturnCount), ThumbturnPrice: normalizeOptionalFloat64(item.ThumbturnPrice), EscutcheonCount: normalizeOptionalInt(item.EscutcheonCount), EscutcheonPrice: normalizeOptionalFloat64(item.EscutcheonPrice), CylinderCount: normalizeOptionalInt(item.CylinderCount), CylinderPrice: normalizeOptionalFloat64(item.CylinderPrice), BoltCount: normalizeOptionalInt(item.BoltCount), BoltPrice: normalizeOptionalFloat64(item.BoltPrice), HingeCount: normalizeOptionalInt(item.HingeCount), HingePrice: normalizeOptionalFloat64(item.HingePrice), DoorStopCount: normalizeOptionalInt(item.DoorStopCount), DoorStopPrice: normalizeOptionalFloat64(item.DoorStopPrice), Comment: strings.TrimSpace(item.Comment)})
 	}
 	return result
 }
@@ -727,7 +738,7 @@ func mapPanelingsForCreate(items []panelingRequest) []models.Paneling {
 	for _, item := range items {
 		sizes := normalizePanelingSizes(item)
 		firstSize := sizes[0]
-		result = append(result, models.Paneling{Color: strings.TrimSpace(item.Color), Size: formatSizes(sizes), Width: firstSize.Width, Height: firstSize.Height, Covering: strings.TrimSpace(item.Covering), Kind: normalizePanelingKind(item.Kind), Sizes: models.Sizes(sizes), QuantityPerSet: 1, TotalArea: normalizePanelingTotalArea(item), Count: len(sizes), Price: item.Price, Comment: strings.TrimSpace(item.Comment)})
+		result = append(result, models.Paneling{Supplier: strings.TrimSpace(item.Supplier), Color: strings.TrimSpace(item.Color), Size: formatSizes(sizes), Width: firstSize.Width, Height: firstSize.Height, Covering: strings.TrimSpace(item.Covering), Kind: normalizePanelingKind(item.Kind), Sizes: models.Sizes(sizes), QuantityPerSet: 1, TotalArea: normalizePanelingTotalArea(item), Count: len(sizes), Price: item.Price, Comment: strings.TrimSpace(item.Comment)})
 	}
 	return result
 }
@@ -766,6 +777,46 @@ func normalizeOptionalFloat64(value *float64) *float64 {
 		return nil
 	}
 	return &normalized
+}
+
+func normalizeNonNegativeInt(value int) int {
+	if value < 0 {
+		return 0
+	}
+
+	return value
+}
+
+func normalizeNonNegativeFloat64(value float64) float64 {
+	if value < 0 {
+		return 0
+	}
+
+	return value
+}
+
+func normalizeFrameCount(setCount int, boxCount int) float64 {
+	return float64(normalizeNonNegativeInt(setCount))*2.5 + float64(normalizeNonNegativeInt(boxCount))
+}
+
+func normalizeFigurePlatbandDeduction(platbandType string, value float64) float64 {
+	if strings.TrimSpace(platbandType) != "figure" {
+		return 0
+	}
+
+	return normalizeNonNegativeFloat64(value)
+}
+
+func normalizeFrameThresholdPrice(value *float64) float64 {
+	if value == nil {
+		return 500
+	}
+
+	if *value < 0 {
+		return 0
+	}
+
+	return *value
 }
 
 func normalizeSecondLeafInt(leafType string, value *int) *int {
@@ -820,9 +871,17 @@ func normalizeDoorLeafType(value string) string {
 	return "Single"
 }
 
+func normalizeEntranceDoorOpening(value string) string {
+	if strings.EqualFold(strings.TrimSpace(value), "right") {
+		return "right"
+	}
+
+	return "left"
+}
+
 func normalizeExtensionQuantityPerSet(value float64) float64 {
 	if value <= 0 {
-		return 0.5
+		return 0
 	}
 
 	return value

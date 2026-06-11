@@ -26,8 +26,9 @@ func SetupRouter(cfg config.Config) *gin.Engine {
 
 	authHandler := handlers.NewAuthHandler(cfg)
 	orderHandler := handlers.NewOrderHandler()
-	registerRoutes(router.Group("/api"), cfg, authHandler, orderHandler)
-	registerRoutes(router.Group("/"), cfg, authHandler, orderHandler)
+	catalogHandler := handlers.NewCatalogHandler()
+	registerRoutes(router.Group("/api"), cfg, authHandler, orderHandler, catalogHandler)
+	registerRoutes(router.Group("/"), cfg, authHandler, orderHandler, catalogHandler)
 
 	return router
 }
@@ -37,6 +38,7 @@ func registerRoutes(
 	cfg config.Config,
 	authHandler *handlers.AuthHandler,
 	orderHandler *handlers.OrderHandler,
+	catalogHandler *handlers.CatalogHandler,
 ) {
 	group.POST("/login", authHandler.Login)
 	group.POST("/refresh", authHandler.Refresh)
@@ -53,5 +55,15 @@ func registerRoutes(
 		protected.DELETE("/orders/:id/payments/:paymentId", orderHandler.DeleteOrderPayment)
 		protected.PATCH("/orders/:id/discounts", orderHandler.UpdateOrderDiscount)
 		protected.DELETE("/orders/:id", orderHandler.DeleteOrder)
+
+		protected.GET("/catalogs", catalogHandler.GetCatalogs)
+		protected.POST("/catalogs", catalogHandler.CreateCatalog)
+		protected.PUT("/catalogs/:id", catalogHandler.UpdateCatalog)
+		protected.DELETE("/catalogs/:id", catalogHandler.DeleteCatalog)
+		protected.GET("/catalogs/key/:key/items", catalogHandler.GetCatalogItemsByKey)
+		protected.GET("/catalogs/:id/items", catalogHandler.GetCatalogItems)
+		protected.POST("/catalogs/:id/items", catalogHandler.CreateCatalogItem)
+		protected.PUT("/catalogs/:id/items/:itemId", catalogHandler.UpdateCatalogItem)
+		protected.DELETE("/catalogs/:id/items/:itemId", catalogHandler.DeleteCatalogItem)
 	}
 }

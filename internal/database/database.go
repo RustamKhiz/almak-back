@@ -41,7 +41,7 @@ func Connect(cfg config.Config) error {
 		return err
 	}
 
-	if err = db.AutoMigrate(&models.User{}, &models.Order{}, &models.OrderPayment{}, &models.InteriorDoor{}, &models.EntranceDoor{}, &models.Molding{}, &models.Extension{}, &models.Capital{}, &models.Hardware{}, &models.Paneling{}); err != nil {
+	if err = db.AutoMigrate(&models.User{}, &models.Order{}, &models.OrderPayment{}, &models.InteriorDoor{}, &models.EntranceDoor{}, &models.Molding{}, &models.Extension{}, &models.Capital{}, &models.Hardware{}, &models.Paneling{}, &models.Catalog{}, &models.CatalogItem{}); err != nil {
 		return err
 	}
 
@@ -117,10 +117,40 @@ func ensureLegacySchemaCompatibility(db *gorm.DB) error {
 			normalizeSQL: `UPDATE "entrance_doors" SET "leaf_type" = 'Single' WHERE "leaf_type" IS NULL OR BTRIM("leaf_type") = ''`,
 		},
 		{
+			table:        "entrance_doors",
+			column:       "opening",
+			addSQL:       `ALTER TABLE "entrance_doors" ADD COLUMN "opening" text`,
+			normalizeSQL: `UPDATE "entrance_doors" SET "opening" = 'left' WHERE "opening" IS NULL OR BTRIM("opening") = ''`,
+		},
+		{
 			table:        "panelings",
 			column:       "width",
 			addSQL:       `ALTER TABLE "panelings" ADD COLUMN "width" bigint`,
 			normalizeSQL: `UPDATE "panelings" SET "width" = 1 WHERE "width" IS NULL OR "width" <= 0`,
+		},
+		{
+			table:        "moldings",
+			column:       "frame_threshold_count",
+			addSQL:       `ALTER TABLE "moldings" ADD COLUMN "frame_threshold_count" bigint`,
+			normalizeSQL: `UPDATE "moldings" SET "frame_threshold_count" = GREATEST(0, ROUND(MOD("frame_count"::numeric, 2.5) / 0.5)::bigint) WHERE "frame_threshold_count" IS NULL OR "frame_threshold_count" < 0`,
+		},
+		{
+			table:        "moldings",
+			column:       "frame_set_count",
+			addSQL:       `ALTER TABLE "moldings" ADD COLUMN "frame_set_count" bigint`,
+			normalizeSQL: `UPDATE "moldings" SET "frame_set_count" = GREATEST(0, FLOOR("frame_count"::numeric / 2.5)::bigint) WHERE "frame_set_count" IS NULL OR "frame_set_count" < 0`,
+		},
+		{
+			table:        "moldings",
+			column:       "frame_box_count",
+			addSQL:       `ALTER TABLE "moldings" ADD COLUMN "frame_box_count" bigint`,
+			normalizeSQL: `UPDATE "moldings" SET "frame_box_count" = 0 WHERE "frame_box_count" IS NULL OR "frame_box_count" < 0`,
+		},
+		{
+			table:        "moldings",
+			column:       "frame_threshold_price",
+			addSQL:       `ALTER TABLE "moldings" ADD COLUMN "frame_threshold_price" double precision`,
+			normalizeSQL: `UPDATE "moldings" SET "frame_threshold_price" = 500 WHERE "frame_threshold_price" IS NULL OR "frame_threshold_price" <= 0`,
 		},
 		{
 			table:        "panelings",
