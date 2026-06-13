@@ -41,6 +41,10 @@ func Connect(cfg config.Config) error {
 		return err
 	}
 
+	if err = ensureMoldingCountsFloatType(db); err != nil {
+		return err
+	}
+
 	if err = db.AutoMigrate(&models.User{}, &models.Order{}, &models.OrderPayment{}, &models.InteriorDoor{}, &models.EntranceDoor{}, &models.Molding{}, &models.Extension{}, &models.Capital{}, &models.Hardware{}, &models.Paneling{}, &models.Catalog{}, &models.CatalogItem{}); err != nil {
 		return err
 	}
@@ -178,6 +182,48 @@ func ensureLegacySchemaCompatibility(db *gorm.DB) error {
 				SET "sizes" = jsonb_build_array(jsonb_build_object('width', "width", 'height', "height"))
 				WHERE "sizes" IS NULL OR "sizes" = 'null'::jsonb OR "sizes" = '[]'::jsonb`,
 		},
+		{
+			table:        "interior_doors",
+			column:       "cost_price",
+			addSQL:       `ALTER TABLE "interior_doors" ADD COLUMN "cost_price" double precision NOT NULL DEFAULT 0`,
+			normalizeSQL: `UPDATE "interior_doors" SET "cost_price" = 0 WHERE "cost_price" IS NULL`,
+		},
+		{
+			table:        "entrance_doors",
+			column:       "cost_price",
+			addSQL:       `ALTER TABLE "entrance_doors" ADD COLUMN "cost_price" double precision NOT NULL DEFAULT 0`,
+			normalizeSQL: `UPDATE "entrance_doors" SET "cost_price" = 0 WHERE "cost_price" IS NULL`,
+		},
+		{
+			table:        "moldings",
+			column:       "cost_price",
+			addSQL:       `ALTER TABLE "moldings" ADD COLUMN "cost_price" double precision NOT NULL DEFAULT 0`,
+			normalizeSQL: `UPDATE "moldings" SET "cost_price" = 0 WHERE "cost_price" IS NULL`,
+		},
+		{
+			table:        "extensions",
+			column:       "cost_price",
+			addSQL:       `ALTER TABLE "extensions" ADD COLUMN "cost_price" double precision NOT NULL DEFAULT 0`,
+			normalizeSQL: `UPDATE "extensions" SET "cost_price" = 0 WHERE "cost_price" IS NULL`,
+		},
+		{
+			table:        "capitals",
+			column:       "cost_price",
+			addSQL:       `ALTER TABLE "capitals" ADD COLUMN "cost_price" double precision NOT NULL DEFAULT 0`,
+			normalizeSQL: `UPDATE "capitals" SET "cost_price" = 0 WHERE "cost_price" IS NULL`,
+		},
+		{
+			table:        "panelings",
+			column:       "cost_price",
+			addSQL:       `ALTER TABLE "panelings" ADD COLUMN "cost_price" double precision NOT NULL DEFAULT 0`,
+			normalizeSQL: `UPDATE "panelings" SET "cost_price" = 0 WHERE "cost_price" IS NULL`,
+		},
+		{
+			table:        "hardwares",
+			column:       "cost_price",
+			addSQL:       `ALTER TABLE "hardwares" ADD COLUMN "cost_price" double precision NOT NULL DEFAULT 0`,
+			normalizeSQL: `UPDATE "hardwares" SET "cost_price" = 0 WHERE "cost_price" IS NULL`,
+		},
 	}
 
 	for _, item := range columns {
@@ -262,4 +308,28 @@ func ensureOrderPaymentStatusesSynced(db *gorm.DB) error {
 
 func roundMoney(value float64) float64 {
 	return math.Round(value*100) / 100
+}
+
+func ensureMoldingCountsFloatType(db *gorm.DB) error {
+	if !db.Migrator().HasTable("moldings") {
+		return nil
+	}
+
+	columns := []string{"frame_set_count", "frame_box_count", "platband_set_count"}
+	for _, col := range columns {
+		var dataType string
+		db.Raw(
+			`SELECT data_type FROM information_schema.columns WHERE table_name = 'moldings' AND column_name = ?`,
+			col,
+		).Scan(&dataType)
+		if dataType == "bigint" || dataType == "integer" {
+			if err := db.Exec(fmt.Sprintf(
+				`ALTER TABLE "moldings" ALTER COLUMN "%s" TYPE double precision USING "%s"::double precision`,
+				col, col,
+			)).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
