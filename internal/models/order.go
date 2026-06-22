@@ -23,5 +23,6 @@ type Order struct {
 	Capitals        []Capital      `json:"capitals,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
 	Hardwares       []Hardware     `json:"hardwares,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
 	Panelings       []Paneling     `json:"panelings,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
+	Skirtings       []Skirting     `json:"skirtings,omitempty" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE"`
 	CreatedAt       time.Time      `json:"created_at"`
 }

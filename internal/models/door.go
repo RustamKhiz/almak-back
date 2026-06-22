@@ -21,11 +21,13 @@ type InteriorDoor struct {
 	Height2      *int     `json:"height2"`
 	HasGlass     bool     `json:"hasGlass" gorm:"not null;default:false"`
 	GlassComment string   `json:"glassComment"`
-	LeafType     string   `json:"leafType" gorm:"not null"`
-	Count        int      `json:"count" gorm:"not null"`
-	Count2       *int     `json:"count2"`
-	Covering     string   `json:"covering" gorm:"not null;default:PVC"`
-	Comment      string   `json:"comment"`
+	LeafType       string   `json:"leafType" gorm:"not null"`
+	Count          int      `json:"count" gorm:"not null"`
+	Count2         *int     `json:"count2"`
+	Covering       string   `json:"covering" gorm:"not null;default:PVC"`
+	RebateBarCount int      `json:"rebateBarCount" gorm:"not null;default:0"`
+	RebateBarPrice *float64 `json:"rebateBarPrice"`
+	Comment        string   `json:"comment"`
 }
 
 func (InteriorDoor) TableName() string { return "interior_doors" }
@@ -191,6 +193,8 @@ type Hardware struct {
 	CylinderPrice   *float64 `json:"cylinderPrice"`
 	BoltCount       *int     `json:"boltCount"`
 	BoltPrice       *float64 `json:"boltPrice"`
+	HingeRightCount *int     `json:"hingeRightCount"`
+	HingeLeftCount  *int     `json:"hingeLeftCount"`
 	HingeCount      *int     `json:"hingeCount"`
 	HingePrice      *float64 `json:"hingePrice"`
 	DoorStopCount   *int     `json:"doorStopCount"`
@@ -199,3 +203,19 @@ type Hardware struct {
 }
 
 func (Hardware) TableName() string { return "hardwares" }
+
+type Skirting struct {
+	ID        uint    `json:"id" gorm:"primaryKey"`
+	OrderID   uint    `json:"order_id" gorm:"index;not null"`
+	Supplier  string  `json:"supplier"`
+	CostPrice float64 `json:"costPrice" gorm:"not null;default:0"`
+	Model     string  `json:"model" gorm:"not null"`
+	Color     string  `json:"color" gorm:"not null"`
+	Height    int     `json:"height" gorm:"not null"`
+	Length    float64 `json:"length" gorm:"not null"`
+	Count     int     `json:"count" gorm:"not null"`
+	Price     float64 `json:"price" gorm:"not null"`
+	Comment   string  `json:"comment"`
+}
+
+func (Skirting) TableName() string { return "skirtings" }
