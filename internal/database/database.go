@@ -207,6 +207,14 @@ func ensureLegacySchemaCompatibility(db *gorm.DB) error {
 			normalizeSQL: `UPDATE "extensions" SET "cost_price" = 0 WHERE "cost_price" IS NULL`,
 		},
 		{
+			table:  "extensions",
+			column: "sizes",
+			addSQL: `ALTER TABLE "extensions" ADD COLUMN "sizes" jsonb`,
+			normalizeSQL: `UPDATE "extensions"
+				SET "sizes" = jsonb_build_array(jsonb_build_object('width', "width", 'height', "height", 'quantity', "quantity_per_set"))
+				WHERE "sizes" IS NULL OR "sizes" = 'null'::jsonb OR "sizes" = '[]'::jsonb`,
+		},
+		{
 			table:        "capitals",
 			column:       "cost_price",
 			addSQL:       `ALTER TABLE "capitals" ADD COLUMN "cost_price" double precision NOT NULL DEFAULT 0`,

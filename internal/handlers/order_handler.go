@@ -17,18 +17,18 @@ import (
 type OrderHandler struct{}
 
 type interiorDoorRequest struct {
-	Supplier     string   `json:"supplier"`
-	CostPrice    float64  `json:"costPrice"`
-	Model        string   `json:"model" binding:"required"`
-	Color        string   `json:"color" binding:"required"`
-	Price        float64  `json:"price" binding:"required"`
-	Price2       *float64 `json:"price2"`
-	Width        int      `json:"width" binding:"required"`
-	Width2       *int     `json:"width2"`
-	Height       int      `json:"height" binding:"required"`
-	Height2      *int     `json:"height2"`
-	HasGlass     bool     `json:"hasGlass"`
-	GlassComment string   `json:"glassComment"`
+	Supplier       string   `json:"supplier"`
+	CostPrice      float64  `json:"costPrice"`
+	Model          string   `json:"model" binding:"required"`
+	Color          string   `json:"color" binding:"required"`
+	Price          float64  `json:"price" binding:"required"`
+	Price2         *float64 `json:"price2"`
+	Width          int      `json:"width" binding:"required"`
+	Width2         *int     `json:"width2"`
+	Height         int      `json:"height" binding:"required"`
+	Height2        *int     `json:"height2"`
+	HasGlass       bool     `json:"hasGlass"`
+	GlassComment   string   `json:"glassComment"`
 	LeafType       string   `json:"leafType" binding:"required"`
 	Count          int      `json:"count" binding:"required"`
 	Count2         *int     `json:"count2"`
@@ -78,29 +78,30 @@ type moldingRequest struct {
 	Comment                string   `json:"comment"`
 }
 type extensionRequest struct {
-	Supplier       string  `json:"supplier"`
-	CostPrice      float64 `json:"costPrice"`
-	Color          string  `json:"color" binding:"required"`
-	Covering       string  `json:"covering" binding:"required"`
-	Width          int     `json:"width" binding:"required"`
-	Height         int     `json:"height" binding:"required"`
-	QuantityPerSet float64 `json:"quantityPerSet"`
-	TotalArea      float64 `json:"totalArea"`
-	Comment        string  `json:"comment"`
-	Count          float64 `json:"count" binding:"required"`
-	Price          float64 `json:"price" binding:"required"`
+	Supplier       string                 `json:"supplier"`
+	CostPrice      float64                `json:"costPrice"`
+	Color          string                 `json:"color" binding:"required"`
+	Covering       string                 `json:"covering" binding:"required"`
+	Width          int                    `json:"width" binding:"required"`
+	Height         int                    `json:"height" binding:"required"`
+	Sizes          []models.ExtensionSize `json:"sizes"`
+	QuantityPerSet float64                `json:"quantityPerSet"`
+	TotalArea      float64                `json:"totalArea"`
+	Comment        string                 `json:"comment"`
+	Count          float64                `json:"count" binding:"required"`
+	Price          float64                `json:"price" binding:"required"`
 }
 type capitalRequest struct {
 	Supplier  string  `json:"supplier"`
 	CostPrice float64 `json:"costPrice"`
-	Name     string  `json:"name" binding:"required"`
-	Color    string  `json:"color" binding:"required"`
-	Covering string  `json:"covering" binding:"required"`
-	Width    int     `json:"width" binding:"required"`
-	Height   int     `json:"height" binding:"required"`
-	Price    float64 `json:"price" binding:"required"`
-	Comment  string  `json:"comment"`
-	Count    int     `json:"count" binding:"required"`
+	Name      string  `json:"name" binding:"required"`
+	Color     string  `json:"color" binding:"required"`
+	Covering  string  `json:"covering" binding:"required"`
+	Width     int     `json:"width" binding:"required"`
+	Height    int     `json:"height" binding:"required"`
+	Price     float64 `json:"price" binding:"required"`
+	Comment   string  `json:"comment"`
+	Count     int     `json:"count" binding:"required"`
 }
 type hardwareRequest struct {
 	Supplier        string   `json:"supplier"`
@@ -692,7 +693,7 @@ func calculateOrderPrice(req orderRequest) float64 {
 		total += derefFloat64OrZero(item.FramePrice)*normalizeNonNegativeFloat64(item.FrameBoxCount) + item.PlatbandPrice*extraPlatbands
 	}
 	for _, item := range req.Extensions {
-		total += normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea) * item.Price
+		total += normalizeExtensionTotalArea(item) * item.Price
 	}
 	for _, item := range req.Capitals {
 		total += item.Price * float64(item.Count)
@@ -757,7 +758,10 @@ func mapMoldingsForCreate(items []moldingRequest) []models.Molding {
 func mapExtensionsForCreate(items []extensionRequest) []models.Extension {
 	result := make([]models.Extension, 0, len(items))
 	for _, item := range items {
-		result = append(result, models.Extension{Supplier: strings.TrimSpace(item.Supplier), CostPrice: item.CostPrice, Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Width: item.Width, Height: item.Height, QuantityPerSet: normalizeExtensionQuantityPerSet(item.QuantityPerSet), TotalArea: normalizeExtensionTotalArea(item.Width, item.Height, item.QuantityPerSet, item.TotalArea), Comment: strings.TrimSpace(item.Comment), Count: 1, Price: item.Price})
+		sizes := normalizeExtensionSizes(item)
+		firstSize := sizes[0]
+		totalQuantity := calculateExtensionTotalQuantity(sizes)
+		result = append(result, models.Extension{Supplier: strings.TrimSpace(item.Supplier), CostPrice: item.CostPrice, Color: strings.TrimSpace(item.Color), Covering: strings.TrimSpace(item.Covering), Width: firstSize.Width, Height: firstSize.Height, Sizes: models.ExtensionSizes(sizes), QuantityPerSet: totalQuantity, TotalArea: normalizeExtensionTotalArea(item), Comment: strings.TrimSpace(item.Comment), Count: 1, Price: item.Price})
 	}
 	return result
 }
@@ -943,12 +947,56 @@ func normalizeSetCount(value float64, itemCount float64) float64 {
 	return 1
 }
 
-func normalizeExtensionTotalArea(width int, height int, quantityPerSet float64, totalArea float64) float64 {
-	if totalArea > 0 {
-		return totalArea
+func normalizeExtensionSizes(item extensionRequest) []models.ExtensionSize {
+	result := make([]models.ExtensionSize, 0, len(item.Sizes))
+	for _, size := range item.Sizes {
+		if size.Width <= 0 || size.Height <= 0 || size.Quantity <= 0 {
+			continue
+		}
+		result = append(result, models.ExtensionSize{
+			Width:    size.Width,
+			Height:   size.Height,
+			Quantity: normalizeExtensionQuantityPerSet(size.Quantity),
+		})
+	}
+	if len(result) > 0 {
+		return result
+	}
+	if item.Width > 0 && item.Height > 0 {
+		return []models.ExtensionSize{{
+			Width:    item.Width,
+			Height:   item.Height,
+			Quantity: normalizeExtensionQuantityPerSet(item.QuantityPerSet),
+		}}
 	}
 
-	return float64(width) * float64(height) * normalizeExtensionQuantityPerSet(quantityPerSet) / 10000
+	return []models.ExtensionSize{{Width: 1, Height: 1, Quantity: 1}}
+}
+
+func calculateExtensionTotalQuantity(sizes []models.ExtensionSize) float64 {
+	total := 0.0
+	for _, size := range sizes {
+		total += normalizeExtensionQuantityPerSet(size.Quantity)
+	}
+
+	return roundMoney(total)
+}
+
+func calculateExtensionAutoTotalArea(sizes []models.ExtensionSize) float64 {
+	total := 0.0
+	for _, size := range sizes {
+		total += float64(size.Width) * float64(size.Height) * normalizeExtensionQuantityPerSet(size.Quantity) / 10000
+	}
+
+	return roundMoney(total)
+}
+
+func normalizeExtensionTotalArea(item extensionRequest) float64 {
+	if item.TotalArea > 0 {
+		return roundMoney(item.TotalArea)
+	}
+
+	return calculateExtensionAutoTotalArea(normalizeExtensionSizes(item))
 }
 
 func formatSize(width int, height int) string {
