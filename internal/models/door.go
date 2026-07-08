@@ -7,20 +7,20 @@ import (
 )
 
 type InteriorDoor struct {
-	ID           uint     `json:"id" gorm:"primaryKey"`
-	OrderID      uint     `json:"order_id" gorm:"index;not null"`
-	Supplier     string   `json:"supplier"`
-	CostPrice    float64  `json:"costPrice" gorm:"not null;default:0"`
-	Model        string   `json:"model" gorm:"not null"`
-	Color        string   `json:"color" gorm:"not null"`
-	Price        float64  `json:"price" gorm:"not null"`
-	Price2       *float64 `json:"price2"`
-	Width        int      `json:"width" gorm:"not null"`
-	Width2       *int     `json:"width2"`
-	Height       int      `json:"height" gorm:"not null"`
-	Height2      *int     `json:"height2"`
-	HasGlass     bool     `json:"hasGlass" gorm:"not null;default:false"`
-	GlassComment string   `json:"glassComment"`
+	ID             uint     `json:"id" gorm:"primaryKey"`
+	OrderID        uint     `json:"order_id" gorm:"index;not null"`
+	Supplier       string   `json:"supplier"`
+	CostPrice      float64  `json:"costPrice" gorm:"not null;default:0"`
+	Model          string   `json:"model" gorm:"not null"`
+	Color          string   `json:"color" gorm:"not null"`
+	Price          float64  `json:"price" gorm:"not null"`
+	Price2         *float64 `json:"price2"`
+	Width          int      `json:"width" gorm:"not null"`
+	Width2         *int     `json:"width2"`
+	Height         int      `json:"height" gorm:"not null"`
+	Height2        *int     `json:"height2"`
+	HasGlass       bool     `json:"hasGlass" gorm:"not null;default:false"`
+	GlassComment   string   `json:"glassComment"`
 	LeafType       string   `json:"leafType" gorm:"not null"`
 	Count          int      `json:"count" gorm:"not null"`
 	Count2         *int     `json:"count2"`
@@ -83,37 +83,70 @@ type Molding struct {
 func (Molding) TableName() string { return "moldings" }
 
 type Extension struct {
-	ID             uint    `json:"id" gorm:"primaryKey"`
-	OrderID        uint    `json:"order_id" gorm:"index;not null"`
-	Supplier       string  `json:"supplier"`
-	CostPrice      float64 `json:"costPrice" gorm:"not null;default:0"`
-	Color          string  `json:"color" gorm:"not null"`
-	Covering       string  `json:"covering" gorm:"not null;default:Enamel"`
-	Width          int     `json:"width" gorm:"not null"`
-	Height         int     `json:"height" gorm:"not null"`
-	SetCount       float64 `json:"setCount" gorm:"not null;default:1"`
-	QuantityPerSet float64 `json:"quantityPerSet" gorm:"not null;default:0.5"`
-	TotalArea      float64 `json:"totalArea" gorm:"not null;default:0"`
-	Comment        string  `json:"comment"`
-	Count          float64 `json:"count" gorm:"not null"`
-	Price          float64 `json:"price" gorm:"not null"`
+	ID             uint           `json:"id" gorm:"primaryKey"`
+	OrderID        uint           `json:"order_id" gorm:"index;not null"`
+	Supplier       string         `json:"supplier"`
+	CostPrice      float64        `json:"costPrice" gorm:"not null;default:0"`
+	Color          string         `json:"color" gorm:"not null"`
+	Covering       string         `json:"covering" gorm:"not null;default:Enamel"`
+	Width          int            `json:"width" gorm:"not null"`
+	Height         int            `json:"height" gorm:"not null"`
+	Sizes          ExtensionSizes `json:"sizes" gorm:"type:jsonb"`
+	SetCount       float64        `json:"setCount" gorm:"not null;default:1"`
+	QuantityPerSet float64        `json:"quantityPerSet" gorm:"not null;default:0.5"`
+	TotalArea      float64        `json:"totalArea" gorm:"not null;default:0"`
+	Comment        string         `json:"comment"`
+	Count          float64        `json:"count" gorm:"not null"`
+	Price          float64        `json:"price" gorm:"not null"`
 }
 
 func (Extension) TableName() string { return "extensions" }
+
+type ExtensionSize struct {
+	Width    int     `json:"width"`
+	Height   int     `json:"height"`
+	Quantity float64 `json:"quantity"`
+}
+
+type ExtensionSizes []ExtensionSize
+
+func (sizes ExtensionSizes) Value() (driver.Value, error) {
+	if sizes == nil {
+		return []byte("[]"), nil
+	}
+
+	return json.Marshal(sizes)
+}
+
+func (sizes *ExtensionSizes) Scan(value any) error {
+	if value == nil {
+		*sizes = ExtensionSizes{}
+		return nil
+	}
+
+	switch typedValue := value.(type) {
+	case []byte:
+		return json.Unmarshal(typedValue, sizes)
+	case string:
+		return json.Unmarshal([]byte(typedValue), sizes)
+	default:
+		return fmt.Errorf("unsupported extension sizes value type %T", value)
+	}
+}
 
 type Capital struct {
 	ID        uint    `json:"id" gorm:"primaryKey"`
 	OrderID   uint    `json:"order_id" gorm:"index;not null"`
 	Supplier  string  `json:"supplier"`
 	CostPrice float64 `json:"costPrice" gorm:"not null;default:0"`
-	Name     string  `json:"name" gorm:"not null"`
-	Color    string  `json:"color" gorm:"not null"`
-	Covering string  `json:"covering" gorm:"not null;default:Enamel"`
-	Width    int     `json:"width" gorm:"not null"`
-	Height   int     `json:"height" gorm:"not null"`
-	Price    float64 `json:"price" gorm:"not null;default:0"`
-	Comment  string  `json:"comment"`
-	Count    int     `json:"count" gorm:"not null"`
+	Name      string  `json:"name" gorm:"not null"`
+	Color     string  `json:"color" gorm:"not null"`
+	Covering  string  `json:"covering" gorm:"not null;default:Enamel"`
+	Width     int     `json:"width" gorm:"not null"`
+	Height    int     `json:"height" gorm:"not null"`
+	Price     float64 `json:"price" gorm:"not null;default:0"`
+	Comment   string  `json:"comment"`
+	Count     int     `json:"count" gorm:"not null"`
 }
 
 func (Capital) TableName() string { return "capitals" }
