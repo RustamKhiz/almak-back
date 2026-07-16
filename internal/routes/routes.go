@@ -51,6 +51,7 @@ func registerRoutes(
 	{
 		protected.POST("/orders", orderHandler.CreateOrder)
 		protected.GET("/orders", orderHandler.GetOrders)
+		protected.GET("/orders/analytics/suppliers", orderHandler.GetSupplierStats)
 		protected.GET("/orders/:id", orderHandler.GetOrderByID)
 		protected.PUT("/orders/:id", orderHandler.UpdateOrder)
 		protected.PATCH("/orders/:id/status", orderHandler.UpdateOrderStatus)

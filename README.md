@@ -181,6 +181,7 @@ Electron использует совместимые JSON-маршруты:
 
 - `POST /orders`
 - `GET /orders`
+- `GET /orders/analytics/suppliers`
 - `GET /orders/:id`
 - `PUT /orders/:id`
 - `PATCH /orders/:id/status`

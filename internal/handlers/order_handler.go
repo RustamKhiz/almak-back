@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"almak-back/internal/database"
 	"almak-back/internal/models"
@@ -193,6 +194,12 @@ type updateOrderDiscountRequest struct {
 	Amount *float64 `json:"amount" binding:"required"`
 }
 
+type supplierStat struct {
+	Name   string  `json:"name"`
+	Count  int64   `json:"count"`
+	Amount float64 `json:"amount"`
+}
+
 func NewOrderHandler() *OrderHandler { return &OrderHandler{} }
 
 func (h *OrderHandler) CreateOrder(c *gin.Context) {
@@ -246,6 +253,68 @@ func (h *OrderHandler) GetOrders(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, orders)
+}
+
+func (h *OrderHandler) GetSupplierStats(c *gin.Context) {
+	dateFrom, ok := parseOptionalDate(c, "dateFrom")
+	if !ok {
+		return
+	}
+	dateTo, ok := parseOptionalDate(c, "dateTo")
+	if !ok {
+		return
+	}
+	status, ok := parseOptionalOrderStatus(c)
+	if !ok {
+		return
+	}
+	payment, ok := parseOptionalPaymentFilter(c)
+	if !ok {
+		return
+	}
+
+	const query = `
+		SELECT
+			COALESCE(NULLIF(TRIM(items.supplier), ''), 'Не указан') AS name,
+			COUNT(*) AS count,
+			COALESCE(SUM(items.amount), 0) AS amount
+		FROM (
+			SELECT order_id, supplier, price * count + CASE WHEN leaf_type = 'Double' THEN COALESCE(price2, 0) * COALESCE(count2, 0) + COALESCE(rebate_bar_price, 0) * rebate_bar_count ELSE 0 END AS amount FROM interior_doors
+			UNION ALL SELECT order_id, supplier, price * count FROM entrance_doors
+			UNION ALL SELECT order_id, supplier, frame_price * frame_box_count + platband_price * GREATEST(platband_count - platband_set_count, 0) FROM moldings
+			UNION ALL SELECT order_id, supplier, total_area * price FROM extensions
+			UNION ALL SELECT order_id, supplier, price * count FROM capitals
+			UNION ALL SELECT order_id, supplier,
+				COALESCE(handle_count, 0) * COALESCE(handle_price, 0) + COALESCE(lock_count, 0) * COALESCE(lock_price, 0) +
+				COALESCE(fixator_count, 0) * COALESCE(fixator_price, 0) + COALESCE(click_count, 0) * COALESCE(click_price, 0) +
+				COALESCE(thumbturn_count, 0) * COALESCE(thumbturn_price, 0) + COALESCE(escutcheon_count, 0) * COALESCE(escutcheon_price, 0) +
+				COALESCE(cylinder_count, 0) * COALESCE(cylinder_price, 0) + COALESCE(bolt_count, 0) * COALESCE(bolt_price, 0) +
+				COALESCE(hinge_count, 0) * COALESCE(hinge_price, 0) + COALESCE(door_stop_count, 0) * COALESCE(door_stop_price, 0)
+			FROM hardwares
+			UNION ALL SELECT order_id, supplier, total_area * price FROM panelings
+			UNION ALL SELECT order_id, supplier, length * count * price FROM skirtings
+		) items
+		JOIN orders o ON o.id = items.order_id
+		WHERE (? = '' OR o.date >= ?)
+			AND (? = '' OR o.date <= ?)
+			AND (? = '' OR o.status = ?)
+			AND (? = '' OR (? = 'paid' AND o.is_paid = TRUE) OR (? = 'unpaid' AND o.is_paid = FALSE))
+		GROUP BY COALESCE(NULLIF(TRIM(items.supplier), ''), 'Не указан')
+		ORDER BY count DESC, name ASC`
+
+	stats := make([]supplierStat, 0)
+	if err := database.DB.Raw(
+		query,
+		dateFrom, dateFrom,
+		dateTo, dateTo,
+		status, status,
+		payment, payment, payment,
+	).Scan(&stats).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load supplier statistics"})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
 }
 func (h *OrderHandler) GetOrderByID(c *gin.Context) {
 	id, ok := parseID(c)
@@ -679,6 +748,48 @@ func parseID(c *gin.Context) (uint, bool) {
 		return 0, false
 	}
 	return uint(id), true
+}
+
+func parseOptionalDate(c *gin.Context, key string) (string, bool) {
+	value := strings.TrimSpace(c.Query(key))
+	if value == "" {
+		return "", true
+	}
+	if _, err := time.Parse("2006-01-02", value); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": key + " must use YYYY-MM-DD format"})
+		return "", false
+	}
+	return value, true
+}
+
+func parseOptionalOrderStatus(c *gin.Context) (string, bool) {
+	value := strings.TrimSpace(c.Query("status"))
+	if value == "" {
+		return "", true
+	}
+	code, err := strconv.Atoi(value)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status"})
+		return "", false
+	}
+	status, ok := statusCodeToValue(code)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status"})
+		return "", false
+	}
+	return status, true
+}
+
+func parseOptionalPaymentFilter(c *gin.Context) (string, bool) {
+	value := strings.TrimSpace(c.Query("payment"))
+	if value == "" || value == "all" {
+		return "", true
+	}
+	if value != "paid" && value != "unpaid" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payment filter"})
+		return "", false
+	}
+	return value, true
 }
 func calculateOrderPrice(req orderRequest) float64 {
 	total := 0.0
