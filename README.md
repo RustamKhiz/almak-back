@@ -162,6 +162,21 @@ Go REST API для авторизации и работы с заказами.
 - `POST /login`
 - `POST /api/login`
 
+Веб-авторизация:
+
+- `POST /login` — возвращает access token и устанавливает refresh token в `HttpOnly` cookie;
+- `POST /refresh` — обновляет пару по cookie и возвращает новый access token;
+- `POST /logout` — удаляет refresh cookie.
+
+Electron использует совместимые JSON-маршруты:
+
+- `POST /desktop/login`;
+- `POST /desktop/refresh`.
+
+Они возвращают `token` и `refreshToken` в теле ответа.
+
+Для поэтапного деплоя прежний JSON-контракт `/login` и `/refresh` также сохранен. Новый веб-клиент передает `useCookie: true` при входе; без этого флага backend возвращает пару токенов в теле ответа, как раньше.
+
 Заказы:
 
 - `POST /orders`

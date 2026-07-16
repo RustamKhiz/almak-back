@@ -42,6 +42,9 @@ func registerRoutes(
 ) {
 	group.POST("/login", authHandler.Login)
 	group.POST("/refresh", authHandler.Refresh)
+	group.POST("/logout", authHandler.Logout)
+	group.POST("/desktop/login", authHandler.DesktopLogin)
+	group.POST("/desktop/refresh", authHandler.DesktopRefresh)
 
 	protected := group.Group("/")
 	protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
