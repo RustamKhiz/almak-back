@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"almak-back/internal/config"
@@ -13,17 +14,23 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	refreshCookieName   = "almak_refresh_token"
+	refreshCookieMaxAge = 30 * 24 * 60 * 60
+)
+
 type AuthHandler struct {
 	Config config.Config
 }
 
 type loginRequest struct {
-	Login    string `json:"login" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Login     string `json:"login" binding:"required"`
+	Password  string `json:"password" binding:"required"`
+	UseCookie bool   `json:"useCookie"`
 }
 
 type refreshRequest struct {
-	RefreshToken string `json:"refreshToken" binding:"required"`
+	RefreshToken string `json:"refreshToken"`
 }
 
 func NewAuthHandler(cfg config.Config) *AuthHandler {
@@ -31,6 +38,14 @@ func NewAuthHandler(cfg config.Config) *AuthHandler {
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
+	h.login(c, false)
+}
+
+func (h *AuthHandler) DesktopLogin(c *gin.Context) {
+	h.login(c, true)
+}
+
+func (h *AuthHandler) login(c *gin.Context, desktopEndpoint bool) {
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "некорректное тело запроса"})
@@ -54,42 +69,68 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": tokenString, "refreshToken": refreshTokenString})
+	if desktopEndpoint || !req.UseCookie {
+		c.JSON(http.StatusOK, gin.H{"token": tokenString, "refreshToken": refreshTokenString})
+		return
+	}
+
+	setRefreshCookie(c, refreshTokenString)
+	c.JSON(http.StatusOK, gin.H{"token": tokenString})
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req refreshRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err == nil && req.RefreshToken != "" {
+		h.refresh(c, req.RefreshToken, true)
+		return
+	}
+
+	refreshToken, err := c.Cookie(refreshCookieName)
+	if err != nil || refreshToken == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh token отсутствует"})
+		return
+	}
+
+	h.refresh(c, refreshToken, false)
+}
+
+func (h *AuthHandler) DesktopRefresh(c *gin.Context) {
+	var req refreshRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.RefreshToken == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "некорректное тело запроса"})
 		return
 	}
 
-	token, err := jwt.Parse(req.RefreshToken, func(token *jwt.Token) (interface{}, error) {
+	h.refresh(c, req.RefreshToken, true)
+}
+
+func (h *AuthHandler) refresh(c *gin.Context, refreshToken string, desktop bool) {
+	token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrTokenSignatureInvalid
 		}
 		return []byte(h.Config.JWTSecret), nil
 	})
 	if err != nil || !token.Valid {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "невалидный refresh token"})
+		rejectInvalidRefresh(c, desktop, "невалидный refresh token")
 		return
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || claims["type"] != "refresh" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "невалидный refresh token"})
+		rejectInvalidRefresh(c, desktop, "невалидный refresh token")
 		return
 	}
 
 	userIDFloat, ok := claims["sub"].(float64)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "невалидный refresh token"})
+		rejectInvalidRefresh(c, desktop, "невалидный refresh token")
 		return
 	}
 
 	var user models.User
 	if err := database.DB.First(&user, uint(userIDFloat)).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "пользователь не найден"})
+		rejectInvalidRefresh(c, desktop, "пользователь не найден")
 		return
 	}
 
@@ -99,7 +140,18 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": tokenString, "refreshToken": refreshTokenString})
+	if desktop {
+		c.JSON(http.StatusOK, gin.H{"token": tokenString, "refreshToken": refreshTokenString})
+		return
+	}
+
+	setRefreshCookie(c, refreshTokenString)
+	c.JSON(http.StatusOK, gin.H{"token": tokenString})
+}
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	clearRefreshCookie(c)
+	c.Status(http.StatusNoContent)
 }
 
 func (h *AuthHandler) issueTokenPair(userID uint, login string) (string, string, error) {
@@ -129,4 +181,35 @@ func (h *AuthHandler) issueTokenPair(userID uint, login string) (string, string,
 func (h *AuthHandler) issueToken(claims jwt.MapClaims) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(h.Config.JWTSecret))
+}
+
+func setRefreshCookie(c *gin.Context, refreshToken string) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(refreshCookieName, refreshToken, refreshCookieMaxAge, "/", "", isSecureRequest(c), true)
+}
+
+func clearRefreshCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(refreshCookieName, "", -1, "/", "", isSecureRequest(c), true)
+}
+
+func rejectInvalidRefresh(c *gin.Context, desktop bool, message string) {
+	if !desktop {
+		clearRefreshCookie(c)
+	}
+	c.JSON(http.StatusUnauthorized, gin.H{"error": message})
+}
+
+func isSecureRequest(c *gin.Context) bool {
+	if c.Request.TLS != nil {
+		return true
+	}
+
+	forwardedProto := strings.TrimSpace(strings.Split(c.GetHeader("X-Forwarded-Proto"), ",")[0])
+	if strings.EqualFold(forwardedProto, "https") {
+		return true
+	}
+
+	host := strings.ToLower(strings.Split(c.Request.Host, ":")[0])
+	return host != "localhost" && host != "127.0.0.1" && host != "[::1]"
 }
