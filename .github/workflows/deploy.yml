@@ -43,6 +43,13 @@ jobs:
             ./myapp-backend.gz \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/myapp-backend.gz
 
+      - name: Configure AI provider on server
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: python3 scripts/provision_ai_env.py
+
       - name: Deploy on server
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} 'bash -s' <<'EOF'
