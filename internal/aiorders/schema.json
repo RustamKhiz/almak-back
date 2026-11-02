@@ -1,0 +1,859 @@
+{
+  "header": {
+    "name": {
+      "label": "Клиент",
+      "type": "string",
+      "required": true
+    },
+    "phone": {
+      "label": "Телефон",
+      "type": "string",
+      "required": true
+    },
+    "date": {
+      "label": "Дата заказа",
+      "type": "string",
+      "required": true
+    },
+    "prepayment": {
+      "label": "Внесено, ₽",
+      "type": "number",
+      "required": false
+    },
+    "discount": {
+      "label": "Скидка, ₽",
+      "type": "number",
+      "required": false
+    },
+    "needsDelivery": {
+      "label": "Нужна доставка",
+      "type": "boolean",
+      "required": true
+    },
+    "deliveryAddress": {
+      "label": "Адрес доставки",
+      "type": "string",
+      "required": false
+    },
+    "comment": {
+      "label": "Комментарий",
+      "type": "string",
+      "required": false
+    }
+  },
+  "items": {
+    "interiorDoor": {
+      "label": "Межкомнатная дверь",
+      "collection": "interiorDoors",
+      "fields": {
+        "supplier": {
+          "label": "Поставщик",
+          "type": "string",
+          "required": false
+        },
+        "costPrice": {
+          "label": "Закупочная цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "model": {
+          "label": "Модель",
+          "type": "string",
+          "required": true
+        },
+        "color": {
+          "label": "Цвет",
+          "type": "string",
+          "required": true
+        },
+        "price": {
+          "label": "Цена, ₽",
+          "type": "number",
+          "required": true,
+          "min": 0
+        },
+        "price2": {
+          "label": "Цена второго полотна, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "width": {
+          "label": "Ширина, см",
+          "type": "number",
+          "required": true,
+          "unit": "cm",
+          "min": 0.01,
+          "integer": true
+        },
+        "width2": {
+          "label": "Ширина второго полотна, см",
+          "type": "number",
+          "required": false,
+          "unit": "cm",
+          "min": 0.01,
+          "integer": true
+        },
+        "height": {
+          "label": "Высота, см",
+          "type": "number",
+          "required": true,
+          "unit": "cm",
+          "min": 0.01,
+          "integer": true
+        },
+        "height2": {
+          "label": "Высота второго полотна, см",
+          "type": "number",
+          "required": false,
+          "unit": "cm",
+          "min": 0.01,
+          "integer": true
+        },
+        "hasGlass": {
+          "label": "Есть стекло",
+          "type": "boolean",
+          "required": true
+        },
+        "glassComment": {
+          "label": "Описание стекла",
+          "type": "string",
+          "required": false
+        },
+        "leafType": {
+          "label": "Полотна",
+          "type": "string",
+          "required": true,
+          "options": [
+            "Single",
+            "Double"
+          ]
+        },
+        "count": {
+          "label": "Количество",
+          "type": "number",
+          "required": true,
+          "min": 0.01,
+          "integer": true,
+          "max": 1000
+        },
+        "count2": {
+          "label": "Количество вторых полотен",
+          "type": "number",
+          "required": false,
+          "min": 0.01,
+          "integer": true,
+          "max": 1000
+        },
+        "covering": {
+          "label": "Покрытие",
+          "type": "string",
+          "required": true
+        },
+        "rebateBarCount": {
+          "label": "Количество притворных планок",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "rebateBarPrice": {
+          "label": "Цена притворной планки, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "comment": {
+          "label": "Комментарий",
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    "entranceDoor": {
+      "label": "Входная дверь",
+      "collection": "entranceDoors",
+      "fields": {
+        "supplier": {
+          "label": "Поставщик",
+          "type": "string",
+          "required": false
+        },
+        "costPrice": {
+          "label": "Закупочная цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "kind": {
+          "label": "Исполнение",
+          "type": "string",
+          "required": true,
+          "options": [
+            "factory",
+            "welded"
+          ]
+        },
+        "opening": {
+          "label": "Открывание",
+          "type": "string",
+          "required": true,
+          "options": [
+            "left",
+            "right"
+          ]
+        },
+        "leafType": {
+          "label": "Полотна",
+          "type": "string",
+          "required": true,
+          "options": [
+            "Single",
+            "Double"
+          ]
+        },
+        "model": {
+          "label": "Модель",
+          "type": "string",
+          "required": true
+        },
+        "width": {
+          "label": "Ширина, см",
+          "type": "number",
+          "required": true,
+          "unit": "cm",
+          "min": 0.01,
+          "integer": true
+        },
+        "height": {
+          "label": "Высота, см",
+          "type": "number",
+          "required": true,
+          "unit": "cm",
+          "min": 0.01,
+          "integer": true
+        },
+        "color": {
+          "label": "Цвет",
+          "type": "string",
+          "required": true
+        },
+        "painting": {
+          "label": "Покраска",
+          "type": "string",
+          "required": false
+        },
+        "panelColor": {
+          "label": "Цвет панели",
+          "type": "string",
+          "required": false
+        },
+        "hasPeephole": {
+          "label": "Есть глазок",
+          "type": "boolean",
+          "required": false
+        },
+        "count": {
+          "label": "Количество",
+          "type": "number",
+          "required": true,
+          "min": 0.01,
+          "integer": true,
+          "max": 1000
+        },
+        "price": {
+          "label": "Цена, ₽",
+          "type": "number",
+          "required": true,
+          "min": 0
+        },
+        "comment": {
+          "label": "Комментарий",
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    "molding": {
+      "label": "Погонаж",
+      "collection": "moldings",
+      "fields": {
+        "supplier": {
+          "label": "Поставщик",
+          "type": "string",
+          "required": false
+        },
+        "costPrice": {
+          "label": "Закупочная цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "frameLength": {
+          "label": "Длина коробки, см",
+          "type": "number",
+          "required": false,
+          "unit": "cm",
+          "min": 0,
+          "integer": true
+        },
+        "framePrice": {
+          "label": "Цена коробки, ₽",
+          "type": "number",
+          "required": true,
+          "min": 0
+        },
+        "frameSetCount": {
+          "label": "Комплектов коробок",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "frameBoxCount": {
+          "label": "Коробок для расчёта",
+          "type": "number",
+          "required": true,
+          "min": 0
+        },
+        "frameThresholdCount": {
+          "label": "Количество порогов",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "frameThresholdPrice": {
+          "label": "Цена порога, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "frameCount": {
+          "label": "Количество элементов коробки",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "platbandType": {
+          "label": "Тип наличника",
+          "type": "string",
+          "required": true,
+          "options": [
+            "oval",
+            "smooth",
+            "figure"
+          ]
+        },
+        "platbandFigure": {
+          "label": "Фигура наличника",
+          "type": "string",
+          "required": false
+        },
+        "platbandLength": {
+          "label": "Длина наличника, см",
+          "type": "number",
+          "required": false,
+          "unit": "cm",
+          "min": 0,
+          "integer": true
+        },
+        "platbandPrice": {
+          "label": "Цена наличника, ₽",
+          "type": "number",
+          "required": true,
+          "min": 0
+        },
+        "platbandSetCount": {
+          "label": "Наличников в составе комплекта",
+          "type": "number",
+          "required": true,
+          "min": 0
+        },
+        "platbandCount": {
+          "label": "Всего наличников",
+          "type": "number",
+          "required": true,
+          "min": 0
+        },
+        "platbandDeductionPrice": {
+          "label": "Вычет наличника, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "rebateBarCount": {
+          "label": "Количество притворных планок",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "rebateBarPrice": {
+          "label": "Цена притворной планки, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "color": {
+          "label": "Цвет",
+          "type": "string",
+          "required": true
+        },
+        "covering": {
+          "label": "Покрытие",
+          "type": "string",
+          "required": true
+        },
+        "comment": {
+          "label": "Комментарий",
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    "extension": {
+      "label": "Добор",
+      "collection": "extensions",
+      "fields": {
+        "supplier": {
+          "label": "Поставщик",
+          "type": "string",
+          "required": false
+        },
+        "costPrice": {
+          "label": "Закупочная цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "color": {
+          "label": "Цвет",
+          "type": "string",
+          "required": true
+        },
+        "covering": {
+          "label": "Покрытие",
+          "type": "string",
+          "required": true
+        },
+        "width": {
+          "label": "Ширина, см",
+          "type": "number",
+          "required": true,
+          "unit": "cm",
+          "min": 0.01,
+          "integer": true
+        },
+        "height": {
+          "label": "Высота, см",
+          "type": "number",
+          "required": true,
+          "unit": "cm",
+          "min": 0.01,
+          "integer": true
+        },
+        "quantityPerSet": {
+          "label": "Количество в комплекте",
+          "type": "number",
+          "required": true,
+          "min": 0.01
+        },
+        "comment": {
+          "label": "Комментарий",
+          "type": "string",
+          "required": false
+        },
+        "count": {
+          "label": "Количество",
+          "type": "number",
+          "required": true,
+          "min": 0.01,
+          "max": 1000
+        },
+        "price": {
+          "label": "Цена, ₽",
+          "type": "number",
+          "required": true,
+          "min": 0
+        }
+      }
+    },
+    "capital": {
+      "label": "Капитель",
+      "collection": "capitals",
+      "fields": {
+        "supplier": {
+          "label": "Поставщик",
+          "type": "string",
+          "required": false
+        },
+        "costPrice": {
+          "label": "Закупочная цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "name": {
+          "label": "Наименование",
+          "type": "string",
+          "required": true
+        },
+        "color": {
+          "label": "Цвет",
+          "type": "string",
+          "required": true
+        },
+        "covering": {
+          "label": "Покрытие",
+          "type": "string",
+          "required": true
+        },
+        "width": {
+          "label": "Ширина, см",
+          "type": "number",
+          "required": true,
+          "unit": "cm",
+          "min": 0.01,
+          "integer": true
+        },
+        "height": {
+          "label": "Высота, см",
+          "type": "number",
+          "required": true,
+          "unit": "cm",
+          "min": 0.01,
+          "integer": true
+        },
+        "price": {
+          "label": "Цена, ₽",
+          "type": "number",
+          "required": true,
+          "min": 0
+        },
+        "comment": {
+          "label": "Комментарий",
+          "type": "string",
+          "required": false
+        },
+        "count": {
+          "label": "Количество",
+          "type": "number",
+          "required": true,
+          "min": 0.01,
+          "integer": true,
+          "max": 1000
+        }
+      }
+    },
+    "hardware": {
+      "label": "Фурнитура",
+      "collection": "hardwares",
+      "fields": {
+        "supplier": {
+          "label": "Поставщик",
+          "type": "string",
+          "required": false
+        },
+        "costPrice": {
+          "label": "Закупочная цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "handleModel": {
+          "label": "Модель ручки",
+          "type": "string",
+          "required": false
+        },
+        "handleColor": {
+          "label": "Цвет ручки",
+          "type": "string",
+          "required": false
+        },
+        "handleCount": {
+          "label": "Ручки: количество",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "handlePrice": {
+          "label": "Ручки: цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "lockCount": {
+          "label": "Замки: количество",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "lockPrice": {
+          "label": "Замки: цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "fixatorCount": {
+          "label": "Фиксаторы: количество",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "fixatorPrice": {
+          "label": "Фиксаторы: цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "clickCount": {
+          "label": "Защёлки: количество",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "clickPrice": {
+          "label": "Защёлки: цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "thumbturnCount": {
+          "label": "Завёртки: количество",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "thumbturnPrice": {
+          "label": "Завёртки: цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "escutcheonCount": {
+          "label": "Накладки: количество",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "escutcheonPrice": {
+          "label": "Накладки: цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "cylinderCount": {
+          "label": "Цилиндры: количество",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "cylinderPrice": {
+          "label": "Цилиндры: цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "boltCount": {
+          "label": "Ригели: количество",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "boltPrice": {
+          "label": "Ригели: цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "hingeRightCount": {
+          "label": "Правые петли: количество",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "hingeLeftCount": {
+          "label": "Левые петли: количество",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "hingeCount": {
+          "label": "Петли: количество",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "hingePrice": {
+          "label": "Петли: цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "doorStopCount": {
+          "label": "Ограничители: количество",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "integer": true
+        },
+        "doorStopPrice": {
+          "label": "Ограничители: цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "comment": {
+          "label": "Комментарий",
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    "paneling": {
+      "label": "Обшивка",
+      "collection": "panelings",
+      "fields": {
+        "supplier": {
+          "label": "Поставщик",
+          "type": "string",
+          "required": false
+        },
+        "costPrice": {
+          "label": "Закупочная цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "color": {
+          "label": "Цвет",
+          "type": "string",
+          "required": true
+        },
+        "width": {
+          "label": "Ширина, см",
+          "type": "number",
+          "required": true,
+          "unit": "cm",
+          "min": 0.01,
+          "integer": true
+        },
+        "height": {
+          "label": "Высота, см",
+          "type": "number",
+          "required": true,
+          "unit": "cm",
+          "min": 0.01,
+          "integer": true
+        },
+        "covering": {
+          "label": "Покрытие",
+          "type": "string",
+          "required": true
+        },
+        "kind": {
+          "label": "Исполнение",
+          "type": "string",
+          "required": true,
+          "options": [
+            "smooth",
+            "figure",
+            "baguette"
+          ]
+        },
+        "count": {
+          "label": "Количество",
+          "type": "number",
+          "required": true,
+          "min": 0.01,
+          "integer": true,
+          "max": 1000
+        },
+        "price": {
+          "label": "Цена, ₽",
+          "type": "number",
+          "required": true,
+          "min": 0
+        },
+        "comment": {
+          "label": "Комментарий",
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    "skirting": {
+      "label": "Плинтус",
+      "collection": "skirtings",
+      "fields": {
+        "supplier": {
+          "label": "Поставщик",
+          "type": "string",
+          "required": false
+        },
+        "costPrice": {
+          "label": "Закупочная цена, ₽",
+          "type": "number",
+          "required": false,
+          "min": 0
+        },
+        "model": {
+          "label": "Модель",
+          "type": "string",
+          "required": true
+        },
+        "color": {
+          "label": "Цвет",
+          "type": "string",
+          "required": true
+        },
+        "height": {
+          "label": "Высота, мм",
+          "type": "number",
+          "required": true,
+          "unit": "mm",
+          "min": 0.01,
+          "integer": true
+        },
+        "length": {
+          "label": "Длина, м",
+          "type": "number",
+          "required": true,
+          "unit": "m",
+          "min": 0.01
+        },
+        "count": {
+          "label": "Количество",
+          "type": "number",
+          "required": true,
+          "min": 0.01,
+          "integer": true,
+          "max": 1000
+        },
+        "price": {
+          "label": "Цена, ₽",
+          "type": "number",
+          "required": true,
+          "min": 0
+        },
+        "comment": {
+          "label": "Комментарий",
+          "type": "string",
+          "required": false
+        }
+      }
+    }
+  }
+}

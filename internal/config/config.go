@@ -11,14 +11,18 @@ import (
 )
 
 type Config struct {
-	Port            string
-	DBHost          string
-	DBPort          string
-	DBUser          string
-	DBPass          string
-	DBName          string
-	JWTSecret       string
-	FrontendOrigins []string
+	Port                 string
+	DBHost               string
+	DBPort               string
+	DBUser               string
+	DBPass               string
+	DBName               string
+	JWTSecret            string
+	FrontendOrigins      []string
+	AIOrderDraftsEnabled bool
+	DeepSeekAPIKey       string
+	DeepSeekModel        string
+	DeepSeekBaseURL      string
 }
 
 func LoadConfig() (Config, error) {
@@ -36,14 +40,18 @@ func LoadConfig() (Config, error) {
 	}
 
 	cfg := Config{
-		Port:            getEnv("PORT", "8080"),
-		DBHost:          os.Getenv("DB_HOST"),
-		DBPort:          os.Getenv("DB_PORT"),
-		DBUser:          os.Getenv("DB_USER"),
-		DBPass:          os.Getenv("DB_PASSWORD"),
-		DBName:          os.Getenv("DB_NAME"),
-		JWTSecret:       os.Getenv("JWT_SECRET"),
-		FrontendOrigins: getFrontendOrigins(),
+		Port:                 getEnv("PORT", "8080"),
+		DBHost:               os.Getenv("DB_HOST"),
+		DBPort:               os.Getenv("DB_PORT"),
+		DBUser:               os.Getenv("DB_USER"),
+		DBPass:               os.Getenv("DB_PASSWORD"),
+		DBName:               os.Getenv("DB_NAME"),
+		JWTSecret:            os.Getenv("JWT_SECRET"),
+		FrontendOrigins:      getFrontendOrigins(),
+		AIOrderDraftsEnabled: strings.EqualFold(os.Getenv("AI_ORDER_DRAFTS_ENABLED"), "true"),
+		DeepSeekAPIKey:       os.Getenv("DEEPSEEK_API_KEY"),
+		DeepSeekModel:        getEnv("DEEPSEEK_MODEL", "deepseek-flash"),
+		DeepSeekBaseURL:      getEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
 	}
 
 	if err := validate(cfg); err != nil {
