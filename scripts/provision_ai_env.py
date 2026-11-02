@@ -52,12 +52,16 @@ def apply():
             stream.write(original)
             if os.geteuid() == 0:
                 os.fchown(stream.fileno(), metadata.st_uid, metadata.st_gid)
+            else:
+                os.fchown(stream.fileno(), -1, metadata.st_gid)
     fd, temporary = tempfile.mkstemp(prefix='.almak-ai-env-', dir=str(path.parent))
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as stream:
             stream.write(content)
             if os.geteuid() == 0:
                 os.fchown(stream.fileno(), metadata.st_uid, metadata.st_gid)
+            else:
+                os.fchown(stream.fileno(), -1, metadata.st_gid)
             os.fchmod(stream.fileno(), stat.S_IMODE(metadata.st_mode) & 0o640)
         os.replace(temporary, path)
     finally:
