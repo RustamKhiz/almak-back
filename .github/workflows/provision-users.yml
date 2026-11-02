@@ -1,0 +1,31 @@
+name: Provision initial users
+
+on:
+  workflow_dispatch:
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build provisioning command
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o almak-users ./cmd/users
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          cat << 'EOF' > ~/.ssh/known_hosts
+          ${{ secrets.KNOWN_HOSTS }}
+          EOF
+          chmod 644 ~/.ssh/known_hosts
+      - name: Provision configured accounts
+        env:
+          INITIAL_TEAM_ACCOUNTS: ${{ secrets.INITIAL_TEAM_ACCOUNTS }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: python3 scripts/provision_team.py ./almak-users
