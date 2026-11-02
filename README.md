@@ -1,243 +1,218 @@
 # Almak Backend
 
-Go REST API для авторизации и работы с заказами.
+REST API для авторизации и учёта заказов на двери и комплектующие. Стек: Go 1.22, Gin, GORM, PostgreSQL, JWT и bcrypt.
 
-Бэкенд хранит заказ целиком: шапку заказа, статусы и все товарные позиции.
+Документация сверена с исходным кодом 2 ноября 2026 года.
 
-## Что умеет бэк
+## Ответственность
 
-- загрузка конфигурации из `.env`;
-- подключение к PostgreSQL;
-- автоприменение миграций через GORM;
-- создание дефолтного пользователя;
-- логин и выдача JWT;
-- CRUD по заказам;
-- смена статуса заказа;
-- серверная валидация и пересчёт суммы заказа.
+- Хранение шапки заказа, восьми типов товарных позиций и истории платежей.
+- Создание, чтение, обновление и удаление заказов; смена статуса.
+- Серверная валидация, пересчёт стоимости, внесённой суммы и признака оплаты.
+- Управление справочниками и их значениями.
+- Агрегированная статистика поставщиков.
+- Вход, обновление JWT и cookie-выход для веб-клиента.
+- Автоматическое обновление схемы БД при старте.
 
-## Стек
+Черновики, графики, HTML документов и `.doc` формируются на фронтенде. Учёт платежей не подключён к эквайрингу. Ролей и разграничения доступа к отдельным заказам нет: защищённые маршруты доступны любому авторизованному пользователю.
 
-- Go
-- Gin
-- GORM
-- PostgreSQL
-- JWT
-- bcrypt
+## Карта кода
 
-## Структура проекта
+| Файл | Назначение |
+| --- | --- |
+| [cmd/main.go](cmd/main.go) | Конфигурация, подключение БД, запуск HTTP и graceful shutdown |
+| [internal/config/config.go](internal/config/config.go) | Переменные окружения и CORS origins |
+| [internal/database/database.go](internal/database/database.go) | Подключение, миграции, перенос старых оплат и встроенный пользователь |
+| [internal/routes/routes.go](internal/routes/routes.go) | Регистрация маршрутов и CORS |
+| [internal/middleware/auth_middleware.go](internal/middleware/auth_middleware.go) | Проверка Bearer JWT |
+| [internal/handlers/auth_handler.go](internal/handlers/auth_handler.go) | Авторизация и обновление токенов |
+| [internal/handlers/order_handler.go](internal/handlers/order_handler.go) | Заказы, расчёты, платежи и аналитика поставщиков |
+| [internal/handlers/catalog_handler.go](internal/handlers/catalog_handler.go) | Справочники |
+| [internal/models](internal/models) | GORM-модели |
 
-- [cmd/main.go](/c:/main/projects/diplom/almak-back/cmd/main.go) — запуск сервера.
-- [internal/config/config.go](/c:/main/projects/diplom/almak-back/internal/config/config.go) — загрузка env.
-- [internal/database/database.go](/c:/main/projects/diplom/almak-back/internal/database/database.go) — подключение к БД, миграции, дефолтный пользователь.
-- [internal/handlers/auth_handler.go](/c:/main/projects/diplom/almak-back/internal/handlers/auth_handler.go) — логин.
-- [internal/handlers/order_handler.go](/c:/main/projects/diplom/almak-back/internal/handlers/order_handler.go) — заказы.
-- [internal/models/order.go](/c:/main/projects/diplom/almak-back/internal/models/order.go) — шапка заказа.
-- [internal/models/door.go](/c:/main/projects/diplom/almak-back/internal/models/door.go) — все дочерние позиции заказа.
-- [internal/routes/routes.go](/c:/main/projects/diplom/almak-back/internal/routes/routes.go) — маршруты и CORS.
+## Модель данных
 
-## Поддерживаемые позиции заказа
+`Order` содержит `customer`, `phone`, `date`, `price`, `prepayment`, `discount`, `needsDelivery`, `deliveryAddress`, `comment`, `status`, `isPaid`, `created_at` и связи:
 
-Сейчас бэк хранит:
+| JSON-поле | Сущность |
+| --- | --- |
+| `interiorDoors` | Межкомнатные двери |
+| `entranceDoors` | Входные двери |
+| `moldings` | Погонаж |
+| `extensions` | Доборы |
+| `capitals` | Капители |
+| `hardwares` | Фурнитура |
+| `panelings` | Обшивка |
+| `skirtings` | Плинтусы |
+| `payments` | Платежи |
 
-- `InteriorDoors`
-- `EntranceDoors`
-- `Moldings`
-- `Extensions`
-- `Capitals`
-- `Panelings`
+Дочерние записи связаны через `order_id` с каскадным удалением. Товарные позиции содержат поставщика и закупочную цену `costPrice`, а также параметры своего типа.
 
-Связь всех дочерних сущностей с заказом идёт через `order_id` и `OnDelete:CASCADE`.
+`OrderPayment` хранит сумму, комментарий, дату и поля `reversalOfPaymentId`/`reversedByPaymentId`. `Catalog` хранит имя и необязательный уникальный ключ; `CatalogItem` — значение и ссылку на справочник. Значения справочников — строковые списки, а не складские карточки товаров.
 
-## Модель заказа
+## Стоимость и оплаты
 
-`Order` содержит:
+`price` сервер вычисляет по составу заказа, без скидки и оплат. Учитываются все восемь типов:
 
-- `customer`
-- `phone`
-- `date`
-- `price`
-- `prepayment`
-- `discount`
-- `needsDelivery`
-- `deliveryAddress`
-- `comment`
-- `status`
-- `created_at`
+- Межкомнатные двери: первое полотно; для двупольных — второе полотно и притворная планка.
+- Входные двери и капители: цена × количество.
+- Погонаж: `framePrice × frameBoxCount + platbandPrice × max(platbandCount − platbandSetCount, 0)` после нормализации.
+- Доборы и обшивка: нормализованная площадь × цена.
+- Фурнитура: сумма стоимости компонентов.
+- Плинтусы: длина × количество × цена.
 
-и массивы дочерних сущностей:
+Закупочная цена не входит в продажную сумму. `prepayment` в ответе означает суммарно внесённую сумму, несмотря на историческое имя поля.
 
-- `interiorDoors`
-- `entranceDoors`
-- `moldings`
-- `extensions`
-- `capitals`
-- `panelings`
+```text
+paidAmount = SUM(payments.amount)
+prepayment = round(paidAmount, 2)
+totalToPay = max(round(price − discount, 2), 0)
+isPaid = round(paidAmount, 2) >= totalToPay
+```
 
-## Особенности расчёта суммы
+### Создание и обновление
 
-Сервер сам пересчитывает `price` и не доверяет итоговой сумме с фронта.
+`POST /orders` проверяет тело, наличие хотя бы одной позиции, адрес при доставке, неотрицательные `prepayment`/`discount` и комментарий к стеклу межкомнатной двери, если стекло включено. В транзакции сохраняет заказ с позициями, создаёт первоначальный платёж при положительном `prepayment` и синхронизирует оплату. Возвращает полный заказ.
 
-В расчёт сейчас входят:
+`PUT /orders/:id` обновляет шапку и полностью заменяет восемь массивов позиций в транзакции. Прежние товарные записи удаляются, новые создаются заново: ID позиций не сохраняются. История платежей сохраняется. Если переданный `prepayment` отличается от суммы текущих платежей, добавляется запись на разницу с комментарием о корректировке; она может быть отрицательной. Затем оплата пересчитывается.
 
-- межкомнатные двери;
-- входные двери;
-- погонаж;
-- доборы;
-- обшивка.
+Отдельный `POST /orders/:id/payments` принимает положительную сумму и не допускает превышения текущей суммы к оплате. Это ограничение не следует переносить на все пути изменения заказа: создание и PUT имеют собственные проверки.
 
-Капитель в серверную сумму не входит, потому что у неё нет цены.
+### Удаление и сторнирование платежа
 
-Погонаж считается как:
+Зарегистрированный `DELETE /orders/:id/payments/:paymentId` физически удаляет запись платежа и синхронизирует оплату заказа. Именно его вызывает UI-метод `reverseOrderPayment`.
 
-- `framePrice * frameCount`
-- `platbandPrice * platbandCount`
+В handler есть отдельная функция `ReverseOrderPayment`, предназначенная для сторнирования, но она **не зарегистрирована** в `routes.go`. Наличие функции и полей связей в модели не означает, что API сейчас сохраняет историю отменённых платежей.
 
-Скидка, предоплата и долг клиента не записываются в `price` как итог к оплате. Это отдельная логика уровня UI.
+## Статусы
 
-## Валидация заказа
-
-[order_handler.go](/c:/main/projects/diplom/almak-back/internal/handlers/order_handler.go) проверяет:
-
-- что тело запроса валидно;
-- что в заказе есть хотя бы одна позиция;
-- что при `needsDelivery = true` указан `deliveryAddress`.
-
-Также сервер нормализует:
-
-- строки через `TrimSpace`;
-- опциональные строки в `nil`, если они пустые;
-- опциональные числа в `nil`, если значение не задано или `<= 0`;
-- адрес доставки в пустую строку, если доставка выключена.
-
-## Как работает создание заказа
-
-`POST /orders`:
-
-1. принимает `orderRequest`;
-2. валидирует тело;
-3. проверяет состав заказа;
-4. пересчитывает `price`;
-5. собирает `models.Order`;
-6. сохраняет заказ и дочерние сущности;
-7. перечитывает заказ с `Preload`;
-8. возвращает полный объект.
-
-## Как работает обновление заказа
-
-`PUT /orders/:id` работает как полная перезапись состава заказа:
-
-1. загружает заказ по `id`;
-2. обновляет поля шапки;
-3. удаляет старые дочерние записи всех типов;
-4. создаёт новые дочерние записи заново;
-5. перечитывает заказ с `Preload`;
-6. возвращает обновлённый заказ.
-
-Это не patch по позициям, а полная замена снимком с фронта.
-
-## Как работает смена статуса
-
-`PATCH /orders/:id/status` принимает:
+`PATCH /orders/:id/status` принимает числовой код:
 
 ```json
-{
-  "status": 2
-}
+{ "status": 2 }
 ```
 
-Коды:
+| Код | Сохраняемое значение | Подпись UI |
+| --- | --- | --- |
+| 1 | `accepted` | Принят |
+| 2 | `ordered` | Заказан |
+| 3 | `received` | Получен |
+| 4 | `customer_notified` | Клиент оповещен |
+| 5 | `issued` | Выдан |
+| 6 | `completed` | Завершен |
 
-- `1 -> accepted`
-- `2 -> progress`
-- `3 -> completed`
+PATCH проверяет допустимость кода, но не порядок переходов. В POST/PUT поле `status` передаётся строкой. Уведомления клиенту автоматически не отправляются.
 
-После обновления сервер возвращает полный заказ с `Preload`.
+## API
 
-## Маршруты
+Все пути зарегистрированы и с `/api`, и без него. Ниже пути указаны без префикса.
 
-Маршруты регистрируются и с префиксом `/api`, и без него.
+### Авторизация
 
-Работают оба варианта:
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| POST | `/login` | Вход: `login`, `password`, для веба `useCookie: true` |
+| POST | `/refresh` | Обновление по cookie; также сохранён JSON-вариант с `refreshToken` |
+| POST | `/logout` | Очистка refresh cookie, ответ 204 |
+| POST | `/desktop/login` | Вход с возвратом пары токенов в JSON |
+| POST | `/desktop/refresh` | Обновление по JSON `refreshToken` |
 
-- `POST /login`
-- `POST /api/login`
+При `useCookie: true` вход возвращает `token` и устанавливает `HttpOnly` cookie `almak_refresh_token`. Без флага `/login` сохраняет совместимый JSON-ответ с `token` и `refreshToken`. Desktop-маршруты всегда используют JSON-пару.
 
-Веб-авторизация:
+Access token действует 24 часа, refresh token — 30 дней. Пароли сверяются через bcrypt. Выход очищает cookie, но не отзывает уже выпущенные JWT на сервере.
 
-- `POST /login` — возвращает access token и устанавливает refresh token в `HttpOnly` cookie;
-- `POST /refresh` — обновляет пару по cookie и возвращает новый access token;
-- `POST /logout` — удаляет refresh cookie.
-
-Electron использует совместимые JSON-маршруты:
-
-- `POST /desktop/login`;
-- `POST /desktop/refresh`.
-
-Они возвращают `token` и `refreshToken` в теле ответа.
-
-Для поэтапного деплоя прежний JSON-контракт `/login` и `/refresh` также сохранен. Новый веб-клиент передает `useCookie: true` при входе; без этого флага backend возвращает пару токенов в теле ответа, как раньше.
-
-Заказы:
-
-- `POST /orders`
-- `GET /orders`
-- `GET /orders/:id`
-- `PUT /orders/:id`
-- `PATCH /orders/:id/status`
-- `DELETE /orders/:id`
-
-И те же маршруты через `/api/...`.
-
-Все маршруты заказов защищены `AuthMiddleware` и требуют:
+Все маршруты ниже требуют заголовок:
 
 ```http
-Authorization: Bearer <token>
+Authorization: Bearer <access-token>
 ```
 
-## Дефолтный пользователь
+### Заказы
 
-При старте сервер обеспечивает наличие пользователя:
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| GET | `/orders` | Все заказы, `id DESC`, без дочерних позиций и платежей |
+| POST | `/orders` | Создать заказ |
+| GET | `/orders/analytics/suppliers` | Агрегированная статистика поставщиков |
+| GET | `/orders/:id` | Полный заказ с позициями и платежами |
+| PUT | `/orders/:id` | Обновить шапку и заменить состав |
+| PATCH | `/orders/:id/status` | Изменить статус |
+| POST | `/orders/:id/payments` | Добавить платёж: `amount`, `comment` |
+| DELETE | `/orders/:id/payments/:paymentId` | Удалить платёж |
+| PATCH | `/orders/:id/discounts` | Установить скидку: `amount` |
+| DELETE | `/orders/:id` | Удалить заказ вместе с дочерними записями |
 
-- `login: almak`
-- `password: almak05`
+Список не имеет серверной пагинации: UI фильтрует загруженные заказы локально. Аналитика поставщиков принимает `dateFrom`, `dateTo` в формате `YYYY-MM-DD`, числовой `status` и `payment` (`all`, `paid`, `unpaid`); возвращает `name`, `count`, `amount`.
+
+### Справочники
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| GET / POST | `/catalogs` | Список / создание справочника |
+| PUT / DELETE | `/catalogs/:id` | Обновление / удаление справочника |
+| GET | `/catalogs/key/:key/items` | Значения по стабильному ключу |
+| GET / POST | `/catalogs/:id/items` | Список / создание значения |
+| PUT / DELETE | `/catalogs/:id/items/:itemId` | Обновление / удаление значения |
+
+При создании и обновлении справочника используются `name`, `key`; для значения — `value`.
 
 ## Локальный запуск
 
-### 1. Подготовить PostgreSQL
+Создать PostgreSQL-базу:
 
 ```sql
 CREATE DATABASE orders_db;
 ```
 
-### 2. Создать `.env`
+Создать `.env` в каталоге `almak-back`:
 
 ```env
-PORT=8080
+PORT=8081
 DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
-DB_PASSWORD=your_password
+DB_PASSWORD=your_local_database_password
 DB_NAME=orders_db
-JWT_SECRET=super_secret_key
+JWT_SECRET=replace_with_a_random_local_secret
 FRONTEND_ORIGINS=http://localhost:4200
 ```
 
-### 3. Запустить сервер
+`8081` соответствует `npm run start:local` фронтенда. Если `PORT` не задан, сервер использует `8080`.
 
 ```bash
-go mod tidy
-go run cmd/main.go
+go mod download
+go run ./cmd
 ```
 
-## Полезно помнить при доработках
+Конфигурация требует `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_NAME`, `JWT_SECRET`. `.env` читается из текущего рабочего каталога и через `godotenv.Overload` имеет приоритет над существующими переменными. `FRONTEND_ORIGINS` — список origins через запятую; при отсутствии используется встроенный список из `config.go`. Подключение к БД сейчас использует `sslmode=disable` и `TimeZone=UTC`.
 
-- `GetOrders()` отдаёт список заказов без preload дочерних позиций.
-- `GetOrderByID()` всегда подгружает все дочерние сущности.
-- `DeleteOrder()` удаляет заказ каскадно вместе со всеми позициями.
-- При добавлении нового типа позиции нужно обновить:
-  - модели;
-  - миграции;
-  - request DTO в handler;
-  - `calculateOrderPrice`;
-  - mapping create/update;
-  - `preloadOrder`.
+### Что происходит при старте
+
+Подключение БД запускает compatibility-изменения старой схемы и `AutoMigrate`, удаляет некоторые устаревшие колонки, переносит старые положительные предоплаты в платежи, если у заказа ещё нет истории, и синхронизирует суммы и признаки оплаты.
+
+`ensureDefaultUser` при каждом старте удаляет пользователя с логином `admin` и создаёт либо обновляет пользователя `almak`, перезаписывая его пароль встроенным значением. Значение находится в [database.go](internal/database/database.go); переменных настройки этого пользователя сейчас нет. Изменённый вручную пароль этого пользователя будет сброшен при следующем старте.
+
+Таким образом, старт сервера изменяет и схему, и данные; это нужно учитывать при подключении к существующей БД.
+
+## Проверки и развёртывание
+
+```bash
+go test ./...
+go build ./cmd
+```
+
+Текущие unit-тесты в [order_handler_test.go](internal/handlers/order_handler_test.go) покрывают расчёт и mapping двупольной межкомнатной двери без цены второго полотна. Это не полное покрытие API, платежей и миграций.
+
+GitHub Actions: [ci.yml](.github/workflows/ci.yml) запускает tidy, тесты и сборку для PR в `main`; [deploy.yml](.github/workflows/deploy.yml) тестирует, собирает Linux binary и развёртывает его при push в `main`.
+
+При добавлении типа позиции нужно согласованно обновить модель и миграцию, request DTO, расчёт цены, mapping создания и обновления, удаление/пересоздание состава, `hasOrderItems`, preload и аналитику поставщиков, а также фронтенд.
+
+## ИИ-разбор черновиков
+
+Защищённый `POST /ai/order-drafts/parse` (также `/api/...`) вызывает DeepSeek, проверяет структуру и возвращает частичный заказ, вопросы и изменения. Он не создаёт заказы или платежи и не хранит переписку на сервере.
+
+Настройки `.env`: `AI_ORDER_DRAFTS_ENABLED=true`, `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL=deepseek-flash`, `DEEPSEEK_BASE_URL=https://api.deepseek.com`. Ключ не передаётся фронту. Без включённого флага и ключа — 503. Инструкция модели: `internal/aiorders/prompt.txt`, схема полей: `internal/aiorders/schema.json`.
+
+Лимиты: 256 КиБ запроса, 10000 символов сообщения, 100 позиций, 10 запросов в минуту на пользователя, 3 параллельных запроса, таймаут 45 секунд. Невалидные/обрезанные ответы и изменение ручных полей отклоняются целиком. Все API ошибки содержат безопасные `code`, `message`, `requestId`.
+
+Контракт JSON Output: [документация DeepSeek](https://api-docs.deepseek.com/guides/json_mode/). Подробная инструкция для рабочего каталога находится в `../docs/ai-order-assistant-setup.md`.

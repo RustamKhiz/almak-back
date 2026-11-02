@@ -27,8 +27,9 @@ func SetupRouter(cfg config.Config) *gin.Engine {
 	authHandler := handlers.NewAuthHandler(cfg)
 	orderHandler := handlers.NewOrderHandler()
 	catalogHandler := handlers.NewCatalogHandler()
-	registerRoutes(router.Group("/api"), cfg, authHandler, orderHandler, catalogHandler)
-	registerRoutes(router.Group("/"), cfg, authHandler, orderHandler, catalogHandler)
+	aiHandler := handlers.NewAiOrderHandler(cfg)
+	registerRoutes(router.Group("/api"), cfg, authHandler, orderHandler, catalogHandler, aiHandler)
+	registerRoutes(router.Group("/"), cfg, authHandler, orderHandler, catalogHandler, aiHandler)
 
 	return router
 }
@@ -39,6 +40,7 @@ func registerRoutes(
 	authHandler *handlers.AuthHandler,
 	orderHandler *handlers.OrderHandler,
 	catalogHandler *handlers.CatalogHandler,
+	aiHandler *handlers.AiOrderHandler,
 ) {
 	group.POST("/login", authHandler.Login)
 	group.POST("/refresh", authHandler.Refresh)
@@ -49,8 +51,10 @@ func registerRoutes(
 	protected := group.Group("/")
 	protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
 	{
+		protected.POST("/ai/order-drafts/parse", aiHandler.Parse)
 		protected.POST("/orders", orderHandler.CreateOrder)
 		protected.GET("/orders", orderHandler.GetOrders)
+		protected.GET("/orders/analytics/suppliers", orderHandler.GetSupplierStats)
 		protected.GET("/orders/:id", orderHandler.GetOrderByID)
 		protected.PUT("/orders/:id", orderHandler.UpdateOrder)
 		protected.PATCH("/orders/:id/status", orderHandler.UpdateOrderStatus)
