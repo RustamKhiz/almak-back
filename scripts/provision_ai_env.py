@@ -37,37 +37,37 @@ def env_path():
     raise RuntimeError('No existing environment file found for myapp-backend; configuration unchanged')
 
 
+def root_command(*args):
+    subprocess.run(['sudo', '-n', *args], check=True, stdout=subprocess.DEVNULL)
+
+
 def apply():
     settings = json.load(sys.stdin)
     path = env_path()
     metadata = path.stat()
-    print('AI env access: readable=%s writable=%s directory_writable=%s mode=%s' % (os.access(path, os.R_OK), os.access(path, os.W_OK), os.access(path.parent, os.W_OK), oct(stat.S_IMODE(metadata.st_mode))))
-    original = path.read_text(encoding='utf-8')
-    content = rewrite_env(original, settings)
-    metadata = path.stat()
-    backup = path.with_name(path.name + '.before-ai')
-    if not backup.exists():
-        fd = os.open(str(backup), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
-            stream.write(original)
-            if os.geteuid() == 0:
-                os.fchown(stream.fileno(), metadata.st_uid, metadata.st_gid)
-            else:
-                os.fchown(stream.fileno(), -1, metadata.st_gid)
-    fd, temporary = tempfile.mkstemp(prefix='.almak-ai-env-', dir=str(path.parent))
-    try:
-        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
-            stream.write(content)
-            if os.geteuid() == 0:
-                os.fchown(stream.fileno(), metadata.st_uid, metadata.st_gid)
-            else:
-                os.fchown(stream.fileno(), -1, metadata.st_gid)
-            os.fchmod(stream.fileno(), stat.S_IMODE(metadata.st_mode) & 0o640)
-        os.replace(temporary, path)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
-    print('AI environment configured; existing application settings preserved')
+    # The server permits narrowly scoped rsync/mv operations, not sudo Python.
+    # Read/write staging files stay on the server in a private temporary directory.
+    with tempfile.TemporaryDirectory(prefix='almak-ai-env-') as directory:
+        local = Path(directory) / 'environment'
+        root_command('/usr/bin/rsync', '-a', '--numeric-ids', '--chmod=F600',
+                     '--chown=%d:%d' % (os.getuid(), os.getgid()), str(path), str(local))
+        original = local.read_text(encoding='utf-8')
+        content = rewrite_env(original, settings)
+        backup = path.with_name(path.name + '.before-ai')
+        if not backup.exists():
+            root_command('/usr/bin/rsync', '-a', '--chmod=F600', str(path), str(backup))
+        local.write_text(content, encoding='utf-8')
+        staged = path.with_name(path.name + '.ai-' + str(os.getpid()))
+        try:
+            root_command('/usr/bin/rsync', '-a', '--numeric-ids',
+                         '--chmod=F%o' % (stat.S_IMODE(metadata.st_mode) & 0o640),
+                         '--chown=%d:%d' % (metadata.st_uid, metadata.st_gid),
+                         str(local), str(staged))
+            root_command('/bin/mv', '--', str(staged), str(path))
+        finally:
+            if staged.exists():
+                root_command('/bin/mv', '--', str(staged), str(Path(directory) / 'unused'))
+    print('AI environment configured; existing application settings and ownership preserved')
 
 
 def send():
@@ -81,7 +81,6 @@ def send():
     remote = '/tmp/almak-provision-ai-env-' + str(os.getpid()) + '.py'
     ssh = ['ssh', '-i', identity, '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', target]
     subprocess.run(['scp', '-i', identity, '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', __file__, target + ':' + remote], check=True)
-    subprocess.run(ssh + ['sudo -n -l'], check=False)
     try:
         subprocess.run(ssh + ['python3 ' + shlex.quote(remote) + ' --apply'], input=json.dumps(settings), text=True, check=True)
     finally:
