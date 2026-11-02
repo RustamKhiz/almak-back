@@ -40,6 +40,8 @@ def env_path():
 def apply():
     settings = json.load(sys.stdin)
     path = env_path()
+    metadata = path.stat()
+    print('AI env access: readable=%s writable=%s directory_writable=%s mode=%s' % (os.access(path, os.R_OK), os.access(path, os.W_OK), os.access(path.parent, os.W_OK), oct(stat.S_IMODE(metadata.st_mode))))
     original = path.read_text(encoding='utf-8')
     content = rewrite_env(original, settings)
     metadata = path.stat()
@@ -48,12 +50,18 @@ def apply():
         fd = os.open(str(backup), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'w', encoding='utf-8') as stream:
             stream.write(original)
-            os.fchown(stream.fileno(), metadata.st_uid, metadata.st_gid)
+            if os.geteuid() == 0:
+                os.fchown(stream.fileno(), metadata.st_uid, metadata.st_gid)
+            else:
+                os.fchown(stream.fileno(), -1, metadata.st_gid)
     fd, temporary = tempfile.mkstemp(prefix='.almak-ai-env-', dir=str(path.parent))
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as stream:
             stream.write(content)
-            os.fchown(stream.fileno(), metadata.st_uid, metadata.st_gid)
+            if os.geteuid() == 0:
+                os.fchown(stream.fileno(), metadata.st_uid, metadata.st_gid)
+            else:
+                os.fchown(stream.fileno(), -1, metadata.st_gid)
             os.fchmod(stream.fileno(), stat.S_IMODE(metadata.st_mode) & 0o640)
         os.replace(temporary, path)
     finally:
@@ -73,8 +81,9 @@ def send():
     remote = '/tmp/almak-provision-ai-env-' + str(os.getpid()) + '.py'
     ssh = ['ssh', '-i', identity, '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', target]
     subprocess.run(['scp', '-i', identity, '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', __file__, target + ':' + remote], check=True)
+    subprocess.run(ssh + ['sudo -n -l'], check=False)
     try:
-        subprocess.run(ssh + ['sudo python3 ' + shlex.quote(remote) + ' --apply'], input=json.dumps(settings), text=True, check=True)
+        subprocess.run(ssh + ['python3 ' + shlex.quote(remote) + ' --apply'], input=json.dumps(settings), text=True, check=True)
     finally:
         subprocess.run(ssh + ['rm -f -- ' + shlex.quote(remote)], check=False)
 
