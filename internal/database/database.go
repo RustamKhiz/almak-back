@@ -1,7 +1,6 @@
 package database
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -9,14 +8,13 @@ import (
 	"almak-back/internal/config"
 	"almak-back/internal/models"
 
-	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 var DB *gorm.DB
 
-func Connect(cfg config.Config) error {
+func Open(cfg config.Config, options ...gorm.Option) (*gorm.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
 		cfg.DBHost,
@@ -26,7 +24,11 @@ func Connect(cfg config.Config) error {
 		cfg.DBPort,
 	)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	return gorm.Open(postgres.Open(dsn), options...)
+}
+
+func Connect(cfg config.Config) error {
+	db, err := Open(cfg)
 	if err != nil {
 		return err
 	}
@@ -65,32 +67,8 @@ func Connect(cfg config.Config) error {
 	if err = ensureOrderPaymentStatusesSynced(db); err != nil {
 		return err
 	}
-	if err = ensureDefaultUser(db); err != nil {
-		return err
-	}
 	DB = db
 	return nil
-}
-
-func ensureDefaultUser(db *gorm.DB) error {
-	if err := db.Where("login = ?", "admin").Delete(&models.User{}).Error; err != nil {
-		return err
-	}
-	const defaultLogin = "almak"
-	const defaultPassword = "almak05"
-	hash, err := bcrypt.GenerateFromPassword([]byte(defaultPassword), bcrypt.DefaultCost)
-	if err != nil {
-		return err
-	}
-	var user models.User
-	err = db.Where("login = ?", defaultLogin).First(&user).Error
-	if err == nil {
-		return db.Model(&user).Update("password", string(hash)).Error
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return err
-	}
-	return db.Create(&models.User{Login: defaultLogin, Password: string(hash)}).Error
 }
 
 func ensureLegacySchemaCompatibility(db *gorm.DB) error {

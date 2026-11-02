@@ -6,6 +6,7 @@ import (
 	"almak-back/internal/config"
 	"almak-back/internal/handlers"
 	"almak-back/internal/middleware"
+	"almak-back/internal/models"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -51,26 +52,27 @@ func registerRoutes(
 	protected := group.Group("/")
 	protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
 	{
-		protected.POST("/ai/order-drafts/parse", aiHandler.Parse)
-		protected.POST("/orders", orderHandler.CreateOrder)
-		protected.GET("/orders", orderHandler.GetOrders)
-		protected.GET("/orders/analytics/suppliers", orderHandler.GetSupplierStats)
-		protected.GET("/orders/:id", orderHandler.GetOrderByID)
-		protected.PUT("/orders/:id", orderHandler.UpdateOrder)
-		protected.PATCH("/orders/:id/status", orderHandler.UpdateOrderStatus)
-		protected.POST("/orders/:id/payments", orderHandler.AddOrderPayment)
-		protected.DELETE("/orders/:id/payments/:paymentId", orderHandler.DeleteOrderPayment)
-		protected.PATCH("/orders/:id/discounts", orderHandler.UpdateOrderDiscount)
-		protected.DELETE("/orders/:id", orderHandler.DeleteOrder)
+		protected.GET("/me", authHandler.Me)
+		protected.POST("/ai/order-drafts/parse", middleware.RequirePermission(models.AssistantUse), aiHandler.Parse)
+		protected.POST("/orders", middleware.RequirePermission(models.OrdersWrite), orderHandler.CreateOrder)
+		protected.GET("/orders", middleware.RequirePermission(models.OrdersRead), orderHandler.GetOrders)
+		protected.GET("/orders/analytics/suppliers", middleware.RequirePermission(models.AnalyticsRead), orderHandler.GetSupplierStats)
+		protected.GET("/orders/:id", middleware.RequirePermission(models.OrdersRead), orderHandler.GetOrderByID)
+		protected.PUT("/orders/:id", middleware.RequirePermission(models.OrdersWrite), orderHandler.UpdateOrder)
+		protected.PATCH("/orders/:id/status", middleware.RequirePermission(models.OrdersWrite), orderHandler.UpdateOrderStatus)
+		protected.POST("/orders/:id/payments", middleware.RequirePermission(models.PaymentsWrite), orderHandler.AddOrderPayment)
+		protected.DELETE("/orders/:id/payments/:paymentId", middleware.RequirePermission(models.PaymentsWrite), orderHandler.DeleteOrderPayment)
+		protected.PATCH("/orders/:id/discounts", middleware.RequirePermission(models.DiscountsWrite), orderHandler.UpdateOrderDiscount)
+		protected.DELETE("/orders/:id", middleware.RequirePermission(models.OrdersDelete), orderHandler.DeleteOrder)
 
-		protected.GET("/catalogs", catalogHandler.GetCatalogs)
-		protected.POST("/catalogs", catalogHandler.CreateCatalog)
-		protected.PUT("/catalogs/:id", catalogHandler.UpdateCatalog)
-		protected.DELETE("/catalogs/:id", catalogHandler.DeleteCatalog)
-		protected.GET("/catalogs/key/:key/items", catalogHandler.GetCatalogItemsByKey)
-		protected.GET("/catalogs/:id/items", catalogHandler.GetCatalogItems)
-		protected.POST("/catalogs/:id/items", catalogHandler.CreateCatalogItem)
-		protected.PUT("/catalogs/:id/items/:itemId", catalogHandler.UpdateCatalogItem)
-		protected.DELETE("/catalogs/:id/items/:itemId", catalogHandler.DeleteCatalogItem)
+		protected.GET("/catalogs", middleware.RequirePermission(models.CatalogsRead), catalogHandler.GetCatalogs)
+		protected.POST("/catalogs", middleware.RequirePermission(models.CatalogsWrite), catalogHandler.CreateCatalog)
+		protected.PUT("/catalogs/:id", middleware.RequirePermission(models.CatalogsWrite), catalogHandler.UpdateCatalog)
+		protected.DELETE("/catalogs/:id", middleware.RequirePermission(models.CatalogsWrite), catalogHandler.DeleteCatalog)
+		protected.GET("/catalogs/key/:key/items", middleware.RequirePermission(models.CatalogsRead), catalogHandler.GetCatalogItemsByKey)
+		protected.GET("/catalogs/:id/items", middleware.RequirePermission(models.CatalogsRead), catalogHandler.GetCatalogItems)
+		protected.POST("/catalogs/:id/items", middleware.RequirePermission(models.CatalogsWrite), catalogHandler.CreateCatalogItem)
+		protected.PUT("/catalogs/:id/items/:itemId", middleware.RequirePermission(models.CatalogsWrite), catalogHandler.UpdateCatalogItem)
+		protected.DELETE("/catalogs/:id/items/:itemId", middleware.RequirePermission(models.CatalogsWrite), catalogHandler.DeleteCatalogItem)
 	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"almak-back/internal/config"
 	"almak-back/internal/database"
+	"almak-back/internal/middleware"
 	"almak-back/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -62,6 +63,10 @@ func (h *AuthHandler) login(c *gin.Context, desktopEndpoint bool) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "неверный логин или пароль"})
 		return
 	}
+	if !user.Role.Valid() {
+		c.JSON(http.StatusForbidden, gin.H{"error": "роль пользователя не поддерживается"})
+		return
+	}
 
 	tokenString, refreshTokenString, err := h.issueTokenPair(user.ID, user.Login)
 	if err != nil {
@@ -70,12 +75,12 @@ func (h *AuthHandler) login(c *gin.Context, desktopEndpoint bool) {
 	}
 
 	if desktopEndpoint || !req.UseCookie {
-		c.JSON(http.StatusOK, gin.H{"token": tokenString, "refreshToken": refreshTokenString})
+		c.JSON(http.StatusOK, gin.H{"token": tokenString, "refreshToken": refreshTokenString, "user": user.Profile()})
 		return
 	}
 
 	setRefreshCookie(c, refreshTokenString)
-	c.JSON(http.StatusOK, gin.H{"token": tokenString})
+	c.JSON(http.StatusOK, gin.H{"token": tokenString, "user": user.Profile()})
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
@@ -122,14 +127,14 @@ func (h *AuthHandler) refresh(c *gin.Context, refreshToken string, desktop bool)
 		return
 	}
 
-	userIDFloat, ok := claims["sub"].(float64)
+	userID, ok := middleware.TokenUserID(claims["sub"])
 	if !ok {
 		rejectInvalidRefresh(c, desktop, "невалидный refresh token")
 		return
 	}
 
 	var user models.User
-	if err := database.DB.First(&user, uint(userIDFloat)).Error; err != nil {
+	if err := database.DB.First(&user, userID).Error; err != nil || !user.Role.Valid() {
 		rejectInvalidRefresh(c, desktop, "пользователь не найден")
 		return
 	}
@@ -141,12 +146,21 @@ func (h *AuthHandler) refresh(c *gin.Context, refreshToken string, desktop bool)
 	}
 
 	if desktop {
-		c.JSON(http.StatusOK, gin.H{"token": tokenString, "refreshToken": refreshTokenString})
+		c.JSON(http.StatusOK, gin.H{"token": tokenString, "refreshToken": refreshTokenString, "user": user.Profile()})
 		return
 	}
 
 	setRefreshCookie(c, refreshTokenString)
-	c.JSON(http.StatusOK, gin.H{"token": tokenString})
+	c.JSON(http.StatusOK, gin.H{"token": tokenString, "user": user.Profile()})
+}
+
+func (h *AuthHandler) Me(c *gin.Context) {
+	user, ok := c.MustGet("user").(models.User)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "пользователь не найден"})
+		return
+	}
+	c.JSON(http.StatusOK, user.Profile())
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
