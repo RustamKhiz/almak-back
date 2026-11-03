@@ -9,10 +9,12 @@ import (
 	"time"
 
 	"almak-back/internal/database"
+	"almak-back/internal/draftorders"
 	"almak-back/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type OrderHandler struct{}
@@ -161,6 +163,8 @@ type skirtingRequest struct {
 	Comment   string  `json:"comment"`
 }
 type orderRequest struct {
+	DraftID         string                `json:"draftId"`
+	DraftRevision   *int                  `json:"draftRevision"`
 	Customer        string                `json:"customer" binding:"required"`
 	Phone           string                `json:"phone" binding:"required"`
 	Date            string                `json:"date" binding:"required"`
@@ -224,8 +228,40 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "glass comment is required for glass interior doors"})
 		return
 	}
+	if req.DraftID != "" && (!draftorders.Identifier.MatchString(req.DraftID) || req.DraftRevision == nil || *req.DraftRevision < 1) {
+		c.JSON(400, gin.H{"error": "invalid draft reference"})
+		return
+	}
 	order := models.Order{Customer: req.Customer, Phone: req.Phone, Date: req.Date, Price: calculateOrderPrice(req), Prepayment: 0, Discount: req.Discount, NeedsDelivery: req.NeedsDelivery, DeliveryAddress: normalizeDeliveryAddress(req.NeedsDelivery, req.DeliveryAddress), Comment: req.Comment, Status: req.Status, IsPaid: req.IsPaid, InteriorDoors: mapInteriorDoorsForCreate(req.InteriorDoors), EntranceDoors: mapEntranceDoorsForCreate(req.EntranceDoors), Moldings: mapMoldingsForCreate(req.Moldings), Extensions: mapExtensionsForCreate(req.Extensions), Capitals: mapCapitalsForCreate(req.Capitals), Hardwares: mapHardwaresForCreate(req.Hardwares), Panelings: mapPanelingsForCreate(req.Panelings), Skirtings: mapSkirtingsForCreate(req.Skirtings)}
-	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+	writeDB := database.DB
+	if req.DraftID != "" {
+		writeDB = draftDB()
+	}
+	if err := writeDB.Transaction(func(tx *gorm.DB) error {
+		var source models.OrderDraft
+		if req.DraftID != "" {
+			user := c.MustGet("user").(models.User)
+			if !user.Can(models.DraftsWrite) {
+				return errDraftConflict
+			}
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&source, "id = ?", req.DraftID).Error; err != nil {
+				return err
+			}
+			if source.OrderID != nil {
+				order = models.Order{ID: *source.OrderID}
+				return nil
+			}
+			if source.State != "active" || source.Revision != *req.DraftRevision {
+				return errDraftConflict
+			}
+			var working int64
+			if err := tx.Model(&models.DraftAIRequest{}).Where("draft_id = ? AND status = ? AND updated_at > ?", source.ID, "working", time.Now().Add(-time.Minute)).Count(&working).Error; err != nil {
+				return err
+			}
+			if working > 0 {
+				return errDraftBusy
+			}
+		}
 		if err := tx.Create(&order).Error; err != nil {
 			return err
 		}
@@ -234,8 +270,18 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 				return err
 			}
 		}
-		return syncOrderPrepayment(tx, order.ID)
+		if err := syncOrderPrepayment(tx, order.ID); err != nil {
+			return err
+		}
+		if req.DraftID != "" {
+			return tx.Model(&source).Updates(map[string]any{"order_id": order.ID, "state": "converted", "revision": source.Revision + 1, "updated_by": draftActor(c)}).Error
+		}
+		return nil
 	}); err != nil {
+		if req.DraftID != "" {
+			draftError(c, err, req.DraftID)
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create order"})
 		return
 	}
