@@ -231,6 +231,56 @@ func TestRepeatOrderCopiesProductsIntoIndependentDraft(t *testing.T) {
 		t.Fatalf("repeat changed registered orders or payments: %d, %d", orders, payments)
 	}
 }
+
+func TestOrderRevisionProtectsConcurrentEditsAndPayments(t *testing.T) {
+	a := setupDraftAPI(t, "")
+	original := orderPayload("", 0)
+	created := a.request(0, "POST", "/orders", original)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", created.Code, created.Body.String())
+	}
+	var order models.Order
+	if err := json.Unmarshal(created.Body.Bytes(), &order); err != nil || order.Revision == 0 {
+		t.Fatalf("missing initial revision: %v", err)
+	}
+	path := fmt.Sprintf("/orders/%d", order.ID)
+	oldRevision := order.Revision
+	if payment := a.request(1, "POST", path+"/payments", map[string]any{"amount": 100}); payment.Code != http.StatusOK {
+		t.Fatalf("payment: %d %s", payment.Code, payment.Body.String())
+	}
+	original["baseRevision"] = oldRevision
+	if stale := a.request(0, "PUT", path, original); stale.Code != http.StatusConflict {
+		t.Fatalf("stale update after payment: %d %s", stale.Code, stale.Body.String())
+	}
+	current := a.request(0, "GET", path, nil)
+	if err := json.Unmarshal(current.Body.Bytes(), &order); current.Code != http.StatusOK || err != nil {
+		t.Fatalf("read current: %d %v", current.Code, err)
+	}
+	if order.Revision != oldRevision+1 || order.Prepayment != 10100 || len(order.Payments) != 2 {
+		t.Fatal("stale edit changed payments or revision")
+	}
+	baseRevision := order.Revision
+	original["baseRevision"] = baseRevision
+	original["prepayment"] = order.Prepayment
+	var group sync.WaitGroup
+	codes := make(chan int, 2)
+	for actor := range 2 {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			codes <- a.request(actor, "PUT", path, original).Code
+		}()
+	}
+	group.Wait()
+	close(codes)
+	counts := map[int]int{}
+	for code := range codes {
+		counts[code]++
+	}
+	if counts[http.StatusOK] != 1 || counts[http.StatusConflict] != 1 {
+		t.Fatalf("concurrent edits returned %v", counts)
+	}
+}
 func TestDraftConversionIsAtomicAndIdempotent(t *testing.T) {
 	a := setupDraftAPI(t, "")
 	readRow(t, a.request(0, "POST", "/order-drafts", a.writeBody(draftOne, "ai", 0, partialDoc("Draft"))))

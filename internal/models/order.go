@@ -4,6 +4,7 @@ import "time"
 
 type Order struct {
 	ID              uint           `json:"id" gorm:"primaryKey"`
+	Revision        uint64         `json:"revision" gorm:"not null;default:1"`
 	Customer        string         `json:"customer" gorm:"not null"`
 	Phone           string         `json:"phone" gorm:"not null"`
 	Date            string         `json:"date" gorm:"not null"`
