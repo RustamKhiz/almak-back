@@ -53,6 +53,17 @@ func registerRoutes(
 	protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
 	{
 		protected.GET("/me", authHandler.Me)
+		drafts := &handlers.DraftHandler{}
+		protected.GET("/order-drafts", middleware.RequirePermission(models.DraftsWrite), drafts.List)
+		protected.GET("/order-drafts/:id", middleware.RequirePermission(models.DraftsWrite), drafts.Get)
+		protected.POST("/order-drafts", middleware.RequirePermission(models.DraftsWrite), drafts.Create)
+		protected.PUT("/order-drafts/:id", middleware.RequirePermission(models.DraftsWrite), drafts.Update)
+		protected.POST("/order-drafts/import", middleware.RequirePermission(models.DraftsWrite), drafts.Import)
+		protected.POST("/order-drafts/:id/archive", middleware.RequirePermission(models.DraftsWrite), drafts.Archive)
+		protected.POST("/order-drafts/:id/restore", middleware.RequirePermission(models.DraftsWrite), drafts.Restore)
+		protected.POST("/order-drafts/:id/undo", middleware.RequirePermission(models.DraftsWrite), drafts.Undo)
+		protected.POST("/order-drafts/:id/messages", middleware.RequirePermission(models.DraftsWrite), middleware.RequirePermission(models.AssistantUse), aiHandler.SendDraftMessage)
+
 		protected.POST("/ai/order-drafts/parse", middleware.RequirePermission(models.AssistantUse), aiHandler.Parse)
 		protected.POST("/orders", middleware.RequirePermission(models.OrdersWrite), orderHandler.CreateOrder)
 		protected.GET("/orders", middleware.RequirePermission(models.OrdersRead), orderHandler.GetOrders)
