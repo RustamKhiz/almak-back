@@ -24,6 +24,7 @@ jobs:
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o myapp-backend ./cmd/main.go
           gzip -9 -c myapp-backend > myapp-backend.gz
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o almak-backup ./cmd/backup
           ls -lh myapp-backend myapp-backend.gz
 
       - name: Setup SSH
@@ -40,8 +41,28 @@ jobs:
         timeout-minutes: 5
         run: |
           rsync -av --partial --timeout=120 --info=progress2 -e "ssh -i ~/.ssh/id_ed25519" \
-            ./myapp-backend.gz \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/myapp-backend.gz
+            ./myapp-backend.gz ./almak-backup \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/
+
+      - name: Back up PostgreSQL before migrations
+        timeout-minutes: 10
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} 'bash -s' <<'EOF'
+          set -euo pipefail
+          umask 077
+          staging=$(mktemp -d)
+          trap 'rm -f -- "$staging/.env" /tmp/almak-backup; rmdir -- "$staging"' EXIT
+          workdir=$(systemctl show myapp-backend --property=WorkingDirectory --value)
+          config="$workdir/.env"
+          if [ ! -f "$config" ]; then
+            read -r config _ <<< "$(systemctl show myapp-backend --property=EnvironmentFiles --value)"
+          fi
+          test -f "$config"
+          sudo -n /usr/bin/rsync -a --numeric-ids --chmod=F600 --chown="$(id -u):$(id -g)" "$config" "$staging/.env"
+          install -d -m 700 "$HOME/almak-backups"
+          cd "$staging"
+          /tmp/almak-backup "$HOME/almak-backups"
+          EOF
 
       - name: Configure AI provider on server
         env:
