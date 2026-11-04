@@ -69,6 +69,7 @@ func registerRoutes(
 		protected.GET("/orders", middleware.RequirePermission(models.OrdersRead), orderHandler.GetOrders)
 		protected.GET("/orders/analytics/suppliers", middleware.RequirePermission(models.AnalyticsRead), orderHandler.GetSupplierStats)
 		protected.GET("/orders/:id", middleware.RequirePermission(models.OrdersRead), orderHandler.GetOrderByID)
+		protected.POST("/orders/:id/repeat", middleware.RequirePermission(models.OrdersRead), middleware.RequirePermission(models.DraftsWrite), drafts.Repeat)
 		protected.PUT("/orders/:id", middleware.RequirePermission(models.OrdersWrite), orderHandler.UpdateOrder)
 		protected.PATCH("/orders/:id/status", middleware.RequirePermission(models.OrdersWrite), orderHandler.UpdateOrderStatus)
 		protected.POST("/orders/:id/payments", middleware.RequirePermission(models.PaymentsWrite), orderHandler.AddOrderPayment)

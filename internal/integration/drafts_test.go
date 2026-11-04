@@ -166,6 +166,71 @@ func TestImportPreservesHistoryAndDoesNotOverwriteNewerWork(t *testing.T) {
 func orderPayload(id string, revision int) map[string]any {
 	return map[string]any{"draftId": id, "draftRevision": revision, "customer": "Customer", "phone": "79000000000", "date": "2026-11-03", "status": "accepted", "prepayment": 10000, "discount": 0, "interiorDoors": []any{map[string]any{"model": "Verona", "color": "White", "price": 12000, "count": 2, "width": 80, "height": 200, "leafType": "Single", "covering": "Эмаль"}}}
 }
+
+func TestRepeatOrderCopiesProductsIntoIndependentDraft(t *testing.T) {
+	a := setupDraftAPI(t, "")
+	order := models.Order{
+		Customer: "Repeat customer", Phone: "79000000000", Date: "2026-11-01",
+		NeedsDelivery: true, DeliveryAddress: "Test street", Status: "completed",
+		Comment: "Original comment", Discount: 300, Prepayment: 800, IsPaid: true,
+		Payments:      []models.OrderPayment{{Amount: 800}},
+		InteriorDoors: []models.InteriorDoor{{ID: 42, Model: "Verona", CostPrice: 500, Price: 1000, Width: 80, Height: 200, Count: 1}},
+		EntranceDoors: []models.EntranceDoor{{Model: "Entry", Width: 90, Height: 200, Count: 1}},
+		Moldings:      []models.Molding{{FramePrice: 100, FrameCount: 2.5}},
+		Extensions:    []models.Extension{{Width: 20, Height: 200, Count: 1, QuantityPerSet: 0.5}},
+		Capitals:      []models.Capital{{Name: "Capital", Width: 80, Height: 20, Count: 1}},
+		Hardwares:     []models.Hardware{{Supplier: "Supplier"}},
+		Panelings:     []models.Paneling{{Size: "20x30; 40х50", Width: 20, Height: 30, Count: 2}},
+		Skirtings:     []models.Skirting{{Model: "Skirting", Height: 10, Length: 2.5, Count: 1}},
+	}
+	if err := a.db.Create(&order).Error; err != nil {
+		t.Fatal(err)
+	}
+	path := fmt.Sprintf("/orders/%d/repeat", order.ID)
+	options := map[string]any{"requestId": draftOne}
+	row := readRow(t, a.request(1, "POST", path, options))
+	if row.SourceOrderID == nil || *row.SourceOrderID != order.ID || row.State != "active" || row.OrderID != nil {
+		t.Fatalf("incorrect repeat metadata: %+v", row)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(row.Document.Payload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	for _, collection := range []string{"interiorDoors", "entranceDoors", "moldings", "extensions", "capitals", "hardwares", "panelings", "skirtings"} {
+		items := payload[collection].([]any)
+		if len(items) != 1 {
+			t.Fatalf("missing product in %s", collection)
+		}
+		item := items[0].(map[string]any)
+		if item["id"] != float64(1) || item["order_id"] != nil || item["costPrice"] != float64(0) {
+			t.Fatalf("source data leaked into product %s", collection)
+		}
+	}
+	if payload["date"] != "" || payload["comment"] != "" || payload["discount"] != float64(0) ||
+		payload["prepayment"] != float64(0) || payload["isPaid"] != false || len(payload["payments"].([]any)) != 0 {
+		t.Fatal("repeat retained source date, comment, discount or payment state")
+	}
+	if got := len(payload["panelings"].([]any)[0].(map[string]any)["sizes"].([]any)); got != 2 {
+		t.Fatalf("legacy paneling dimensions lost: %d", got)
+	}
+	if retry := readRow(t, a.request(1, "POST", path, options)); retry.ID != row.ID {
+		t.Fatal("retry created another draft")
+	}
+	options = map[string]any{"requestId": draftTwo, "copyComment": true, "copyDiscount": true}
+	withOptions := readRow(t, a.request(1, "POST", path, options))
+	if err := json.Unmarshal(withOptions.Document.Payload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["comment"] != order.Comment || payload["discount"] != order.Discount || withOptions.ID == row.ID {
+		t.Fatal("explicit repeat options were not applied")
+	}
+	var orders, payments int64
+	a.db.Model(&models.Order{}).Count(&orders)
+	a.db.Model(&models.OrderPayment{}).Count(&payments)
+	if orders != 1 || payments != 1 {
+		t.Fatalf("repeat changed registered orders or payments: %d, %d", orders, payments)
+	}
+}
 func TestDraftConversionIsAtomicAndIdempotent(t *testing.T) {
 	a := setupDraftAPI(t, "")
 	readRow(t, a.request(0, "POST", "/order-drafts", a.writeBody(draftOne, "ai", 0, partialDoc("Draft"))))

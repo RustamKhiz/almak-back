@@ -20,6 +20,7 @@ type OrderDraft struct {
 	ImportHash    string               `json:"-"`
 	CreateRequest string               `json:"-"`
 	OrderID       *uint                `json:"orderId,omitempty"`
+	SourceOrderID *uint                `json:"sourceOrderId,omitempty"`
 	Creator       *User                `json:"creator,omitempty" gorm:"foreignKey:CreatedBy"`
 	Editor        *User                `json:"editor,omitempty" gorm:"foreignKey:UpdatedBy"`
 	CreatedAt     time.Time            `json:"createdAt"`
