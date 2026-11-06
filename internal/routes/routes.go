@@ -62,6 +62,7 @@ func registerRoutes(
 		protected.POST("/order-drafts/:id/archive", middleware.RequirePermission(models.DraftsWrite), drafts.Archive)
 		protected.POST("/order-drafts/:id/restore", middleware.RequirePermission(models.DraftsWrite), drafts.Restore)
 		protected.POST("/order-drafts/:id/undo", middleware.RequirePermission(models.DraftsWrite), drafts.Undo)
+		protected.POST("/order-drafts/:id/apply", middleware.RequirePermission(models.DraftsWrite), middleware.RequirePermission(models.AssistantUse), middleware.RequirePermission(models.OrdersWrite), drafts.ApplyOrderEdit)
 		protected.POST("/order-drafts/:id/messages", middleware.RequirePermission(models.DraftsWrite), middleware.RequirePermission(models.AssistantUse), aiHandler.SendDraftMessage)
 
 		protected.POST("/ai/order-drafts/parse", middleware.RequirePermission(models.AssistantUse), aiHandler.Parse)
@@ -70,6 +71,7 @@ func registerRoutes(
 		protected.GET("/orders/analytics/suppliers", middleware.RequirePermission(models.AnalyticsRead), orderHandler.GetSupplierStats)
 		protected.GET("/orders/:id", middleware.RequirePermission(models.OrdersRead), orderHandler.GetOrderByID)
 		protected.POST("/orders/:id/repeat", middleware.RequirePermission(models.OrdersRead), middleware.RequirePermission(models.DraftsWrite), drafts.Repeat)
+		protected.POST("/orders/:id/ai-edit", middleware.RequirePermission(models.OrdersRead), middleware.RequirePermission(models.OrdersWrite), middleware.RequirePermission(models.DraftsWrite), middleware.RequirePermission(models.AssistantUse), drafts.StartOrderEdit)
 		protected.PUT("/orders/:id", middleware.RequirePermission(models.OrdersWrite), orderHandler.UpdateOrder)
 		protected.PATCH("/orders/:id/status", middleware.RequirePermission(models.OrdersWrite), orderHandler.UpdateOrderStatus)
 		protected.POST("/orders/:id/payments", middleware.RequirePermission(models.PaymentsWrite), orderHandler.AddOrderPayment)

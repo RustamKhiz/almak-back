@@ -251,6 +251,9 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&source, "id = ?", req.DraftID).Error; err != nil {
 				return err
 			}
+			if source.TargetOrderID != nil {
+				return gorm.ErrRecordNotFound
+			}
 			if source.OrderID != nil {
 				order = models.Order{ID: *source.OrderID}
 				return nil
@@ -410,7 +413,8 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&order, id).Error; err != nil {
 			return err
 		}
-		if req.BaseRevision != nil && order.Revision != *req.BaseRevision {
+		if (req.BaseRevision == nil && order.RequiresRevision) ||
+			(req.BaseRevision != nil && order.Revision != *req.BaseRevision) {
 			return errOrderRevision
 		}
 		currentPrepayment, err := getOrderPaidAmount(tx, order.ID)
@@ -1248,9 +1252,13 @@ func readOrderSnapshot(db *gorm.DB, order *models.Order, id uint) error {
 }
 
 func preloadOrder(db *gorm.DB) *gorm.DB {
-	return db.Preload("Payments", func(tx *gorm.DB) *gorm.DB {
+	db = db.Preload("Payments", func(tx *gorm.DB) *gorm.DB {
 		return tx.Order("created_at ASC, id ASC")
-	}).Preload("InteriorDoors").Preload("EntranceDoors").Preload("Moldings").Preload("Extensions").Preload("Capitals").Preload("Hardwares").Preload("Panelings").Preload("Skirtings")
+	})
+	for _, association := range []string{"InteriorDoors", "EntranceDoors", "Moldings", "Extensions", "Capitals", "Hardwares", "Panelings", "Skirtings"} {
+		db = db.Preload(association, func(tx *gorm.DB) *gorm.DB { return tx.Order("id ASC") })
+	}
+	return db
 }
 func calculateHardwarePrice(item hardwareRequest) float64 {
 	return optionalLineTotal(item.HandleCount, item.HandlePrice) + optionalLineTotal(item.LockCount, item.LockPrice) + optionalLineTotal(item.FixatorCount, item.FixatorPrice) + optionalLineTotal(item.ClickCount, item.ClickPrice) + optionalLineTotal(item.ThumbturnCount, item.ThumbturnPrice) + optionalLineTotal(item.EscutcheonCount, item.EscutcheonPrice) + optionalLineTotal(item.CylinderCount, item.CylinderPrice) + optionalLineTotal(item.BoltCount, item.BoltPrice) + optionalLineTotal(item.HingeCount, item.HingePrice) + optionalLineTotal(item.DoorStopCount, item.DoorStopPrice)

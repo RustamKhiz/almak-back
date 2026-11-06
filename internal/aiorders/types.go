@@ -120,7 +120,7 @@ func ValidateRequest(r Request) error {
 	if !identifier.MatchString(r.RequestID) || !identifier.MatchString(r.DraftID) || r.BaseRevision < 0 || r.SchemaVersion != 1 {
 		return errors.New("invalid request metadata")
 	}
-	if r.Mode != "initial" && r.Mode != "refine" {
+	if r.Mode != "initial" && r.Mode != "refine" && r.Mode != "edit_order" {
 		return errors.New("invalid mode")
 	}
 	if strings.TrimSpace(r.Text) == "" || len([]rune(r.Text)) > 10000 || len(r.History) > 40 || len(r.FieldSources) > 5000 {
