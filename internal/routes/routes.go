@@ -78,6 +78,7 @@ func registerRoutes(
 		protected.DELETE("/orders/:id/payments/:paymentId", middleware.RequirePermission(models.PaymentsWrite), orderHandler.DeleteOrderPayment)
 		protected.PATCH("/orders/:id/discounts", middleware.RequirePermission(models.DiscountsWrite), orderHandler.UpdateOrderDiscount)
 		protected.DELETE("/orders/:id", middleware.RequirePermission(models.OrdersDelete), orderHandler.DeleteOrder)
+		protected.POST("/orders/bulk-delete", middleware.RequirePermission(models.OrdersDelete), orderHandler.DeleteOrders)
 
 		protected.GET("/catalogs", middleware.RequirePermission(models.CatalogsRead), catalogHandler.GetCatalogs)
 		protected.POST("/catalogs", middleware.RequirePermission(models.CatalogsWrite), catalogHandler.CreateCatalog)

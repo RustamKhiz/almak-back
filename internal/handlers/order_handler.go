@@ -572,6 +572,28 @@ func (h *OrderHandler) DeleteOrder(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "order deleted"})
 }
+
+func (h *OrderHandler) DeleteOrders(c *gin.Context) {
+	var req struct {
+		IDs []uint `json:"ids"`
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 8192)
+	if c.ShouldBindJSON(&req) != nil || len(req.IDs) == 0 || len(req.IDs) > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Выберите от 1 до 100 заказов."})
+		return
+	}
+	for _, id := range req.IDs {
+		if id == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "Некорректный номер заказа."})
+			return
+		}
+	}
+	if err := database.DB.WithContext(c.Request.Context()).Delete(&models.Order{}, req.IDs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Не удалось удалить выбранные заказы."})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
 func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
