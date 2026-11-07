@@ -56,6 +56,12 @@ func TestAIParseProviderValidationAndFailure(t *testing.T) {
 			if strings.Contains(rec.Body.String(), "test-key") {
 				t.Fatal("credential leaked")
 			}
+			if test.want == 200 {
+				var response aiorders.Response
+				if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil || len(response.Questions) != 0 {
+					t.Fatal("provider questions reached the client")
+				}
+			}
 		})
 	}
 }
