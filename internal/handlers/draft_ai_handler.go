@@ -197,7 +197,7 @@ func (h *AiOrderHandler) SendDraftMessage(c *gin.Context) {
 		if err := tx.Model(&row).Select("document", "revision", "updated_by", "updated_at").Updates(&row).Error; err != nil {
 			return err
 		}
-		text := draftReply(mode, *row.Document.Order, len(row.Document.Changes))
+		text := draftReply(mode, previous, *row.Document.Order, len(row.Document.Changes))
 		if err := tx.Create(&models.DraftMessage{DraftID: id, Role: "assistant", Text: text, RequestID: input.RequestID}).Error; err != nil {
 			return err
 		}

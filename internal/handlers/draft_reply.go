@@ -2,12 +2,13 @@ package handlers
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"almak-back/internal/aiorders"
 )
 
-func draftReply(mode string, order aiorders.Order, changes int) string {
+func draftReply(mode string, before, order aiorders.Order, changes int) string {
 	text := "Черновик создан."
 	if mode == "refine" {
 		text = "Черновик обновлён."
@@ -17,8 +18,11 @@ func draftReply(mode string, order aiorders.Order, changes int) string {
 		if changes == 0 {
 			text = "В рабочей копии пока нет изменений."
 		}
-	} else {
-		text += fmt.Sprintf(" Позиций: %d.", len(order.Items))
+	}
+	if summary := draftSummary(before, order); len(summary) > 0 {
+		text += "\n" + strings.Join(summary, "\n")
+	} else if mode != "initial" {
+		text += "\nВ этом сообщении новых изменений нет."
 	}
 
 	type group struct {
@@ -45,6 +49,9 @@ func draftReply(mode string, order aiorders.Order, changes int) string {
 			index = positions[parts[1]]
 			item := order.Items[index-1]
 			field = aiorders.Definitions.Items[item.Type].Fields[parts[2]]
+			if parts[2] == "type" {
+				field = aiorders.Field{Label: "Тип товара", ValueLabels: map[string]string{item.Type: aiorders.Definitions.Items[item.Type].Label}}
+			}
 			value = item.Fields[parts[2]]
 		}
 		if mode == "edit_order" && index == 0 && (parts[1] == "date") {
@@ -91,4 +98,83 @@ func draftReply(mode string, order aiorders.Order, changes int) string {
 		text += "\n\nДля проверки:\n• " + strings.Join(notes, "\n• ")
 	}
 	return text
+}
+
+func draftSummary(before, after aiorders.Order) []string {
+	previous, current := map[string]aiorders.Item{}, map[string]aiorders.Item{}
+	for _, item := range before.Items {
+		previous[item.ItemID] = item
+	}
+	lines := []string{}
+	for _, item := range after.Items {
+		current[item.ItemID] = item
+		if _, exists := previous[item.ItemID]; !exists {
+			name := aiorders.Definitions.Items[item.Type].Label
+			if model, ok := item.Fields["model"].(string); ok && model != "" {
+				name += " · " + model
+			}
+			if count, ok := item.Fields["count"].(float64); ok {
+				name += fmt.Sprintf(" — %g шт.", count)
+			}
+			lines = append(lines, "Добавлено: "+name)
+		}
+	}
+	for i, item := range before.Items {
+		if _, exists := current[item.ItemID]; !exists {
+			lines = append(lines, fmt.Sprintf("Удалена позиция %d: %s", i+1, aiorders.Definitions.Items[item.Type].Label))
+		}
+	}
+	for _, change := range aiorders.Changes(before, after) {
+		parts := strings.Split(change.Path, ".")
+		field := aiorders.Field{}
+		label := change.Label
+		if parts[0] == "header" {
+			field = aiorders.Definitions.Header[parts[1]]
+		} else if parts[0] == "items" && len(parts) == 3 {
+			item, exists := current[parts[1]]
+			if _, existed := previous[parts[1]]; !exists || !existed {
+				continue
+			}
+			field = aiorders.Definitions.Items[item.Type].Fields[parts[2]]
+			for i, candidate := range after.Items {
+				if candidate.ItemID == item.ItemID {
+					label = fmt.Sprintf("Позиция %d · %s", i+1, field.Label)
+				}
+			}
+		}
+		if field.Label == "" {
+			continue
+		}
+		value := "не указано"
+		switch v := change.After.(type) {
+		case string:
+			value = v
+			if translated := field.ValueLabels[v]; translated != "" {
+				value = translated
+			}
+		case float64:
+			value = strconv.FormatFloat(v, 'f', -1, 64)
+		case bool:
+			value = "нет"
+			if v {
+				value = "да"
+			}
+		}
+		if runes := []rune(value); len(runes) > 80 {
+			value = string(runes[:80]) + "…"
+		}
+		line := label + ": " + value
+		if change.Path == "header.prepayment" {
+			lines = append([]string{line}, lines...)
+		} else {
+			lines = append(lines, line)
+		}
+	}
+	if len(lines) > 3 {
+		lines = append(lines[:3], fmt.Sprintf("И ещё изменений: %d", len(lines)-3))
+	}
+	for i := range lines {
+		lines[i] = "• " + lines[i]
+	}
+	return lines
 }
