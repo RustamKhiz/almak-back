@@ -1,30 +1,35 @@
 package models
 
 import (
+	"almak-back/internal/aiorders"
 	"almak-back/internal/draftorders"
 	"time"
 )
 
 // Messages are separate from the CAS document: saving a form cannot replace history.
 type OrderDraft struct {
-	SchemaVersion int                  `json:"schemaVersion" gorm:"not null;default:1"`
-	ID            string               `json:"id" gorm:"primaryKey;size:36"`
-	Kind          string               `json:"kind" gorm:"not null"`
-	Revision      int                  `json:"revision" gorm:"not null"`
-	State         string               `json:"state" gorm:"not null;index"`
-	Document      draftorders.Document `json:"document" gorm:"serializer:json;type:jsonb;not null"`
-	CreatedBy     *uint                `json:"createdBy" gorm:"index"`
-	UpdatedBy     uint                 `json:"updatedBy"`
-	ImportedBy    *uint                `json:"importedBy,omitempty"`
-	ImportKey     *string              `json:"-" gorm:"uniqueIndex"`
-	ImportHash    string               `json:"-"`
-	CreateRequest string               `json:"-"`
-	OrderID       *uint                `json:"orderId,omitempty"`
-	Creator       *User                `json:"creator,omitempty" gorm:"foreignKey:CreatedBy"`
-	Editor        *User                `json:"editor,omitempty" gorm:"foreignKey:UpdatedBy"`
-	CreatedAt     time.Time            `json:"createdAt"`
-	UpdatedAt     time.Time            `json:"updatedAt"`
-	Messages      []DraftMessage       `json:"messages" gorm:"foreignKey:DraftID"`
+	SchemaVersion     int                  `json:"schemaVersion" gorm:"not null;default:1"`
+	ID                string               `json:"id" gorm:"primaryKey;size:36"`
+	Kind              string               `json:"kind" gorm:"not null"`
+	Revision          int                  `json:"revision" gorm:"not null"`
+	State             string               `json:"state" gorm:"not null;index"`
+	Document          draftorders.Document `json:"document" gorm:"serializer:json;type:jsonb;not null"`
+	CreatedBy         *uint                `json:"createdBy" gorm:"index"`
+	UpdatedBy         uint                 `json:"updatedBy"`
+	ImportedBy        *uint                `json:"importedBy,omitempty"`
+	ImportKey         *string              `json:"-" gorm:"uniqueIndex"`
+	ImportHash        string               `json:"-"`
+	CreateRequest     string               `json:"-"`
+	OrderID           *uint                `json:"orderId,omitempty"`
+	SourceOrderID     *uint                `json:"sourceOrderId,omitempty"`
+	TargetOrderID     *uint                `json:"targetOrderId,omitempty" gorm:"index"`
+	BaseOrderRevision uint64               `json:"baseOrderRevision,omitempty"`
+	EditBase          *aiorders.Order      `json:"-" gorm:"serializer:json;type:jsonb"`
+	Creator           *User                `json:"creator,omitempty" gorm:"foreignKey:CreatedBy"`
+	Editor            *User                `json:"editor,omitempty" gorm:"foreignKey:UpdatedBy"`
+	CreatedAt         time.Time            `json:"createdAt"`
+	UpdatedAt         time.Time            `json:"updatedAt"`
+	Messages          []DraftMessage       `json:"messages" gorm:"foreignKey:DraftID"`
 }
 
 type DraftMessage struct {

@@ -145,7 +145,18 @@ func (h *AiOrderHandler) generate(ctx context.Context, user string, req aiorders
 	if len(input) > 160<<10 {
 		return fail(413, "CONTEXT_TOO_LARGE", "Контекст слишком большой. Продолжите заполнение в форме.")
 	}
-	payload, _ := json.Marshal(gin.H{"model": h.cfg.DeepSeekModel, "messages": []gin.H{{"role": "system", "content": aiorders.Prompt + "\nSCHEMA JSON:\n" + string(aiorders.SchemaJSON)}, {"role": "user", "content": string(input)}}, "response_format": gin.H{"type": "json_object"}, "thinking": gin.H{"type": "disabled"}, "max_tokens": 8192})
+	prompt := aiorders.Prompt
+	if req.Mode == "edit_order" {
+		prompt += "\nРежим edit_order: это существующий заказ. Нумеруй позиции в порядке currentDraft.items. " +
+			"Возвращай все существующие позиции, если пользователь явно не просил удалить конкретную позицию. " +
+			"Меняй только явно названные поля. Разрешены клиент, телефон, комментарий, доставка и товарные позиции. " +
+			"Дата, скидка, платежи, статус, поставщики и закупочные цены недоступны. " +
+			"Размеры и количество существующих доборов и обшивки сохраняй, для их изменения предложи обычный редактор. " +
+			"Для новых товаров уточни необходимые параметры. Непонятное указание уточняй вопросом. " +
+			"Для очистки комментария используй пустую строку. Для самовывоза укажи needsDelivery=false. " +
+			"Отвечай предложением к проверке, не обещай применения."
+	}
+	payload, _ := json.Marshal(gin.H{"model": h.cfg.DeepSeekModel, "messages": []gin.H{{"role": "system", "content": prompt + "\nSCHEMA JSON:\n" + string(aiorders.SchemaJSON)}, {"role": "user", "content": string(input)}}, "response_format": gin.H{"type": "json_object"}, "thinking": gin.H{"type": "disabled"}, "max_tokens": 8192})
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	upstream, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(h.cfg.DeepSeekBaseURL, "/")+"/chat/completions", bytes.NewReader(payload))

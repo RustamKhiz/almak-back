@@ -71,7 +71,7 @@ func readDraft(db *gorm.DB, id string) (models.OrderDraft, error) {
 }
 func respondDraft(c *gin.Context, id string) {
 	row, err := readDraft(draftDB().WithContext(c.Request.Context()), id)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && !canAccessDraft(c, row)) {
 		c.JSON(404, gin.H{"message": "Черновик не найден"})
 		return
 	}
@@ -88,6 +88,10 @@ func draftError(c *gin.Context, err error, id string) {
 	}
 	if errors.Is(err, errDraftConflict) {
 		row, _ := readDraft(draftDB(), id)
+		if !canAccessDraft(c, row) {
+			c.JSON(404, gin.H{"message": "Черновик не найден"})
+			return
+		}
 		c.JSON(409, gin.H{"code": "DRAFT_CONFLICT", "message": "Черновик изменён другим пользователем. Ваши правки сохранены в открытом окне.", "current": row})
 		return
 	}
@@ -108,6 +112,12 @@ func (h *DraftHandler) List(c *gin.Context) {
 		offset = 0
 	}
 	q := draftDB().WithContext(c.Request.Context()).Model(&models.OrderDraft{})
+	user := c.MustGet("user").(models.User)
+	if user.Can(models.OrdersRead) && user.Can(models.OrdersWrite) && user.Can(models.AssistantUse) {
+		q = q.Where("(target_order_id IS NULL OR created_by = ?)", user.ID)
+	} else {
+		q = q.Where("target_order_id IS NULL")
+	}
 	if c.Query("archived") == "true" {
 		q = q.Where("state = ?", "archived")
 	} else {
@@ -189,6 +199,9 @@ func (h *DraftHandler) mutate(c *gin.Context, action string) {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, "id = ?", id).Error; err != nil {
 			return err
 		}
+		if !canAccessDraft(c, row) {
+			return gorm.ErrRecordNotFound
+		}
 		var done models.DraftMutation
 		if err := tx.First(&done, "id = ?", req.RequestID).Error; err == nil {
 			if done.DraftID != id || done.Hash != hash || done.Revision != row.Revision {
@@ -205,7 +218,11 @@ func (h *DraftHandler) mutate(c *gin.Context, action string) {
 			if row.State != "active" || row.Kind != req.Kind {
 				return errDraftConflict
 			}
-			row.Document = req.Document
+			if row.TargetOrderID != nil {
+				row.Document.PendingText = req.Document.PendingText
+			} else {
+				row.Document = req.Document
+			}
 		} else if action == "archive" {
 			row.State = "archived"
 		} else {
@@ -318,6 +335,9 @@ func (h *DraftHandler) Undo(c *gin.Context) {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, "id = ?", id).Error; err != nil {
 			return err
 		}
+		if !canAccessDraft(c, row) {
+			return gorm.ErrRecordNotFound
+		}
 		var done models.DraftMutation
 		if tx.First(&done, "id = ?", req.RequestID).Error == nil {
 			if done.DraftID == id && done.Hash == "undo" && done.Revision == row.Revision {
@@ -332,6 +352,9 @@ func (h *DraftHandler) Undo(c *gin.Context) {
 		row.Document.FieldSources = row.Document.LastAppliedChange.FieldSources
 		row.Document.LastAppliedChange = nil
 		row.Document.Changes = []aiorders.Change{}
+		if row.EditBase != nil {
+			row.Document.Changes = editChanges(*row.EditBase, *row.Document.Order)
+		}
 		row.Document.Questions = []string{}
 		row.Revision++
 		row.UpdatedBy = draftActor(c)

@@ -37,6 +37,9 @@ func (h *AiOrderHandler) SendDraftMessage(c *gin.Context) {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&snapshot, "id = ?", id).Error; err != nil {
 			return err
 		}
+		if !canAccessDraft(c, snapshot) {
+			return gorm.ErrRecordNotFound
+		}
 		if snapshot.Kind != "ai" || snapshot.State != "active" || snapshot.Document.Order == nil || (snapshot.Document.EditorState != nil && snapshot.Document.EditorState.Accepted) {
 			return errDraftConflict
 		}
@@ -149,6 +152,9 @@ func (h *AiOrderHandler) SendDraftMessage(c *gin.Context) {
 	if len(history) > 40 {
 		history = history[len(history)-40:]
 	}
+	if snapshot.TargetOrderID != nil {
+		mode = "edit_order"
+	}
 	req := aiorders.Request{RequestID: input.RequestID, DraftID: id, BaseRevision: snapshot.Revision, SchemaVersion: 1, Mode: mode, Text: input.Text, CurrentDraft: *snapshot.Document.Order, FieldSources: snapshot.Document.FieldSources, History: history}
 	response, failure := h.generate(c.Request.Context(), fmt.Sprint(actor), req)
 	if failure != nil {
@@ -177,6 +183,12 @@ func (h *AiOrderHandler) SendDraftMessage(c *gin.Context) {
 		row.Document.Order = &response.ProposedDraft
 		row.Document.Questions = response.Questions
 		row.Document.Changes = response.Changes
+		if row.EditBase != nil {
+			if normalizeEditProposal(*row.EditBase, previous, row.Document.Order) {
+				row.Document.Questions = append([]string{"Размеры и количество доборов и обшивки изменяйте в обычном редакторе."}, row.Document.Questions...)
+			}
+			row.Document.Changes = editChanges(*row.EditBase, *row.Document.Order)
+		}
 		if strings.TrimSpace(row.Document.PendingText) == input.Text {
 			row.Document.PendingText = ""
 		}
@@ -189,7 +201,13 @@ func (h *AiOrderHandler) SendDraftMessage(c *gin.Context) {
 		if mode == "refine" {
 			text = "Черновик обновлён."
 		}
-		for _, q := range response.Questions[:min(3, len(response.Questions))] {
+		if mode == "edit_order" {
+			text = "Проверьте предложенные изменения заказа."
+			if len(row.Document.Changes) == 0 {
+				text = "В рабочей копии пока нет изменений."
+			}
+		}
+		for _, q := range row.Document.Questions[:min(3, len(row.Document.Questions))] {
 			text += "\n\n" + q
 		}
 		if err := tx.Create(&models.DraftMessage{DraftID: id, Role: "assistant", Text: text, RequestID: input.RequestID}).Error; err != nil {
