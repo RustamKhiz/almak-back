@@ -56,6 +56,16 @@ func draftReply(mode string, order aiorders.Order, changes int) string {
 		}
 		if value != nil && value != "" {
 			label += " (проверьте значение)"
+		} else if len(field.Options) > 0 {
+			options := []string{}
+			for _, option := range field.Options {
+				if name := field.ValueLabels[option]; name != "" {
+					options = append(options, name)
+				}
+			}
+			if len(options) > 0 {
+				label += " (" + strings.Join(options, " / ") + ")"
+			}
 		}
 		groups[index].fields = append(groups[index].fields, label)
 	}
@@ -74,7 +84,11 @@ func draftReply(mode string, order aiorders.Order, changes int) string {
 		text += "\nОбязательные поля заполнены."
 	}
 	if len(order.Notes) > 0 {
-		text += "\n\nДля проверки:\n• " + strings.Join(order.Notes, "\n• ")
+		notes := make([]string, len(order.Notes))
+		for i, note := range order.Notes {
+			notes[i] = aiorders.DisplayText(note)
+		}
+		text += "\n\nДля проверки:\n• " + strings.Join(notes, "\n• ")
 	}
 	return text
 }

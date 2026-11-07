@@ -34,6 +34,13 @@ func TestDraftReplyReportsMissingFieldsWithoutQuestions(t *testing.T) {
 	if !strings.Contains(reply, "Черновик обновлён.") || !strings.Contains(reply, "Обязательные поля заполнены.") {
 		t.Fatal(reply)
 	}
+	delete(order.Items[0].Fields, "leafType")
+	order.Notes = []string{"Полотно: Single/Double."}
+	reply = draftReply("refine", order, 1)
+	if strings.Contains(reply, "Single") || strings.Contains(reply, "Double") ||
+		!strings.Contains(reply, "Одностворчатая / Двустворчатая") {
+		t.Fatal(reply)
+	}
 }
 
 func TestEditReplyKeepsReviewStepAndOmitsUneditableDate(t *testing.T) {
