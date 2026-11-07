@@ -189,7 +189,6 @@ func normalizeEditProposal(base, before aiorders.Order, after *aiorders.Order) b
 			}
 		}
 	}
-	after.Notes = []string{}
 	return sizesRejected
 }
 
@@ -199,6 +198,7 @@ func lockedSizeField(kind, field string) bool {
 }
 
 func editChanges(before, after aiorders.Order) []aiorders.Change {
+	before.Notes, after.Notes = nil, nil
 	changes := aiorders.Changes(before, after)
 	labels := map[string]string{}
 	for i, item := range before.Items {

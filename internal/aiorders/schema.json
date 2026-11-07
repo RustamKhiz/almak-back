@@ -128,7 +128,11 @@
           "options": [
             "Single",
             "Double"
-          ]
+          ],
+          "valueLabels": {
+            "Single": "Одностворчатая",
+            "Double": "Двустворчатая"
+          }
         },
         "count": {
           "label": "Количество",
@@ -149,7 +153,13 @@
         "covering": {
           "label": "Покрытие",
           "type": "string",
-          "required": true
+          "required": true,
+          "valueLabels": {
+            "Enamel": "Эмаль",
+            "Veneer": "Шпон",
+            "Embossing": "Тиснение",
+            "PVC": "ПВХ"
+          }
         },
         "rebateBarCount": {
           "label": "Количество притворных планок",
@@ -193,7 +203,11 @@
           "options": [
             "factory",
             "welded"
-          ]
+          ],
+          "valueLabels": {
+            "factory": "Заводская",
+            "welded": "Сварная"
+          }
         },
         "opening": {
           "label": "Открывание",
@@ -202,7 +216,11 @@
           "options": [
             "left",
             "right"
-          ]
+          ],
+          "valueLabels": {
+            "left": "Левое",
+            "right": "Правое"
+          }
         },
         "leafType": {
           "label": "Полотна",
@@ -211,7 +229,11 @@
           "options": [
             "Single",
             "Double"
-          ]
+          ],
+          "valueLabels": {
+            "Single": "Одностворчатая",
+            "Double": "Двустворчатая"
+          }
         },
         "model": {
           "label": "Модель",
@@ -343,7 +365,12 @@
             "oval",
             "smooth",
             "figure"
-          ]
+          ],
+          "valueLabels": {
+            "oval": "Овальный",
+            "smooth": "Гладкий",
+            "figure": "Фигурный"
+          }
         },
         "platbandFigure": {
           "label": "Фигура наличника",
@@ -403,7 +430,13 @@
         "covering": {
           "label": "Покрытие",
           "type": "string",
-          "required": true
+          "required": true,
+          "valueLabels": {
+            "Enamel": "Эмаль",
+            "Veneer": "Шпон",
+            "Embossing": "Тиснение",
+            "PVC": "ПВХ"
+          }
         },
         "comment": {
           "label": "Комментарий",
@@ -435,7 +468,13 @@
         "covering": {
           "label": "Покрытие",
           "type": "string",
-          "required": true
+          "required": true,
+          "valueLabels": {
+            "Enamel": "Эмаль",
+            "Veneer": "Шпон",
+            "Embossing": "Тиснение",
+            "PVC": "ПВХ"
+          }
         },
         "width": {
           "label": "Ширина, см",
@@ -507,7 +546,13 @@
         "covering": {
           "label": "Покрытие",
           "type": "string",
-          "required": true
+          "required": true,
+          "valueLabels": {
+            "Enamel": "Эмаль",
+            "Veneer": "Шпон",
+            "Embossing": "Тиснение",
+            "PVC": "ПВХ"
+          }
         },
         "width": {
           "label": "Ширина, см",
@@ -761,7 +806,13 @@
         "covering": {
           "label": "Покрытие",
           "type": "string",
-          "required": true
+          "required": true,
+          "valueLabels": {
+            "Enamel": "Эмаль",
+            "Veneer": "Шпон",
+            "Embossing": "Тиснение",
+            "PVC": "ПВХ"
+          }
         },
         "kind": {
           "label": "Исполнение",
@@ -771,7 +822,12 @@
             "smooth",
             "figure",
             "baguette"
-          ]
+          ],
+          "valueLabels": {
+            "smooth": "Гладкая",
+            "figure": "Фигурная",
+            "baguette": "С багетом"
+          }
         },
         "count": {
           "label": "Количество",

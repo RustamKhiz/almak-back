@@ -22,14 +22,15 @@ var SchemaJSON []byte
 var Prompt string
 
 type Field struct {
-	Max      float64  `json:"max,omitempty"`
-	Integer  bool     `json:"integer,omitempty"`
-	Label    string   `json:"label"`
-	Type     string   `json:"type"`
-	Required bool     `json:"required"`
-	Options  []string `json:"options,omitempty"`
-	Min      float64  `json:"min,omitempty"`
-	Unit     string   `json:"unit,omitempty"`
+	ValueLabels map[string]string `json:"valueLabels,omitempty"`
+	Max         float64           `json:"max,omitempty"`
+	Integer     bool              `json:"integer,omitempty"`
+	Label       string            `json:"label"`
+	Type        string            `json:"type"`
+	Required    bool              `json:"required"`
+	Options     []string          `json:"options,omitempty"`
+	Min         float64           `json:"min,omitempty"`
+	Unit        string            `json:"unit,omitempty"`
 }
 type ItemSchema struct {
 	Label      string           `json:"label"`

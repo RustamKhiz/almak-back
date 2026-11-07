@@ -152,7 +152,7 @@ func (h *AiOrderHandler) generate(ctx context.Context, user string, req aiorders
 			"Меняй только явно названные поля. Разрешены клиент, телефон, комментарий, доставка и товарные позиции. " +
 			"Дата, скидка, платежи, статус, поставщики и закупочные цены недоступны. " +
 			"Размеры и количество существующих доборов и обшивки сохраняй, для их изменения предложи обычный редактор. " +
-			"Для новых товаров уточни необходимые параметры. Непонятное указание уточняй вопросом. " +
+			"Неизвестные параметры новых товаров оставляй пустыми. Непонятное указание сохрани короткой заметкой в notes; questions всегда пустой. " +
 			"Для очистки комментария используй пустую строку. Для самовывоза укажи needsDelivery=false. " +
 			"Отвечай предложением к проверке, не обещай применения."
 	}
@@ -204,6 +204,7 @@ func (h *AiOrderHandler) generate(ctx context.Context, user string, req aiorders
 	if aiorders.DecodeStrict([]byte(completion.Choices[0].Message.Content), &result) != nil || aiorders.ValidateResult(req, result) != nil {
 		return fail(502, "AI_INVALID_RESPONSE", "Ответ не прошёл проверку. Предыдущие данные сохранены; можно повторить или исправить вручную.")
 	}
+	result.Questions = []string{}
 	// No raw input, provider body, or credentials in logs.
 	fmt.Printf("ai_order_parse request=%s model=%s duration_ms=%d tokens=%d result=ok\n", req.RequestID, h.cfg.DeepSeekModel, time.Since(started).Milliseconds(), completion.Usage.TotalTokens)
 	return aiorders.Response{RequestID: req.RequestID, DraftID: req.DraftID, BaseRevision: req.BaseRevision, SchemaVersion: 1, ProposedDraft: result.Order, Questions: result.Questions, Issues: aiorders.Issues(result.Order), Changes: aiorders.Changes(req.CurrentDraft, result.Order)}, nil

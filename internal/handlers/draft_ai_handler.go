@@ -181,11 +181,11 @@ func (h *AiOrderHandler) SendDraftMessage(c *gin.Context) {
 		}
 		row.Document.FieldSources = sources
 		row.Document.Order = &response.ProposedDraft
-		row.Document.Questions = response.Questions
+		row.Document.Questions = []string{}
 		row.Document.Changes = response.Changes
 		if row.EditBase != nil {
 			if normalizeEditProposal(*row.EditBase, previous, row.Document.Order) {
-				row.Document.Questions = append([]string{"Размеры и количество доборов и обшивки изменяйте в обычном редакторе."}, row.Document.Questions...)
+				row.Document.Order.Notes = append(row.Document.Order.Notes, "Размеры и количество доборов и обшивки изменяйте в обычном редакторе.")
 			}
 			row.Document.Changes = editChanges(*row.EditBase, *row.Document.Order)
 		}
@@ -197,19 +197,7 @@ func (h *AiOrderHandler) SendDraftMessage(c *gin.Context) {
 		if err := tx.Model(&row).Select("document", "revision", "updated_by", "updated_at").Updates(&row).Error; err != nil {
 			return err
 		}
-		text := "Черновик подготовлен."
-		if mode == "refine" {
-			text = "Черновик обновлён."
-		}
-		if mode == "edit_order" {
-			text = "Проверьте предложенные изменения заказа."
-			if len(row.Document.Changes) == 0 {
-				text = "В рабочей копии пока нет изменений."
-			}
-		}
-		for _, q := range row.Document.Questions[:min(3, len(row.Document.Questions))] {
-			text += "\n\n" + q
-		}
+		text := draftReply(mode, previous, *row.Document.Order, len(row.Document.Changes))
 		if err := tx.Create(&models.DraftMessage{DraftID: id, Role: "assistant", Text: text, RequestID: input.RequestID}).Error; err != nil {
 			return err
 		}

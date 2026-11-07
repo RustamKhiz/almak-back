@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -358,7 +359,7 @@ func TestServerChatPersistsInputAndRejectsLateAIResult(t *testing.T) {
 		if n > 1 {
 			name = "Manual"
 		}
-		result := map[string]any{"order": map[string]any{"header": map[string]any{"name": name}, "items": []any{}, "notes": []any{}}, "questions": []any{}}
+		result := map[string]any{"order": map[string]any{"header": map[string]any{"name": name}, "items": []any{}, "notes": []any{"Не указан состав комплекта."}}, "questions": []any{"Какой телефон клиента?"}}
 		content, _ := json.Marshal(result)
 		json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": string(content)}, "finish_reason": "stop"}}})
 	}))
@@ -388,6 +389,11 @@ func TestServerChatPersistsInputAndRejectsLateAIResult(t *testing.T) {
 	success := readRow(t, a.request(0, "POST", "/order-drafts/"+draftOne+"/messages", command))
 	if len(success.Messages) != 2 || success.Document.PendingText != "" {
 		t.Fatal("retry duplicated input or did not finish")
+	}
+	reply := success.Messages[1].Text
+	if len(success.Document.Questions) != 0 || strings.Contains(reply, "?") ||
+		!strings.Contains(reply, "Телефон") || !strings.Contains(reply, "Не указан состав комплекта.") {
+		t.Fatal("saved reply must list missing fields and notes without questions")
 	}
 	readRow(t, a.request(0, "POST", "/order-drafts/"+draftOne+"/messages", command))
 	if calls.Load() != 2 {
