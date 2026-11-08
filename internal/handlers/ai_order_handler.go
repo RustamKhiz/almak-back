@@ -205,6 +205,7 @@ func (h *AiOrderHandler) generate(ctx context.Context, user string, req aiorders
 		return fail(502, "AI_INVALID_RESPONSE", "Ответ не прошёл проверку. Предыдущие данные сохранены; можно повторить или исправить вручную.")
 	}
 	result.Questions = []string{}
+	applyOrderDefaults(req.Mode, req.CurrentDraft, &result.Order, time.Now())
 	// No raw input, provider body, or credentials in logs.
 	fmt.Printf("ai_order_parse request=%s model=%s duration_ms=%d tokens=%d result=ok\n", req.RequestID, h.cfg.DeepSeekModel, time.Since(started).Milliseconds(), completion.Usage.TotalTokens)
 	return aiorders.Response{RequestID: req.RequestID, DraftID: req.DraftID, BaseRevision: req.BaseRevision, SchemaVersion: 1, ProposedDraft: result.Order, Questions: result.Questions, Issues: aiorders.Issues(result.Order), Changes: aiorders.Changes(req.CurrentDraft, result.Order)}, nil
