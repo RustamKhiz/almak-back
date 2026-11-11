@@ -23,15 +23,16 @@ type aiRate struct {
 	Count int
 }
 type AiOrderHandler struct {
-	cfg    config.Config
-	client *http.Client
-	slots  chan struct{}
-	mu     sync.Mutex
-	rates  map[string]aiRate
+	cfg       config.Config
+	client    *http.Client
+	slots     chan struct{}
+	voiceSlot chan struct{}
+	mu        sync.Mutex
+	rates     map[string]aiRate
 }
 
 func NewAiOrderHandler(cfg config.Config) *AiOrderHandler {
-	return &AiOrderHandler{cfg: cfg, client: &http.Client{Timeout: 45 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}, slots: make(chan struct{}, 3), rates: map[string]aiRate{}}
+	return &AiOrderHandler{cfg: cfg, client: &http.Client{Timeout: 45 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}, slots: make(chan struct{}, 3), voiceSlot: make(chan struct{}, 1), rates: map[string]aiRate{}}
 }
 func (h *AiOrderHandler) allowed(user string) bool {
 	h.mu.Lock()

@@ -213,6 +213,8 @@ GitHub Actions: [ci.yml](.github/workflows/ci.yml) запускает tidy, те
 
 Настройки `.env`: `AI_ORDER_DRAFTS_ENABLED=true`, `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL=deepseek-flash`, `DEEPSEEK_BASE_URL=https://api.deepseek.com`. Ключ не передаётся фронту. Без включённого флага и ключа — 503. Инструкция модели: `internal/aiorders/prompt.txt`, схема полей: `internal/aiorders/schema.json`.
 
+Голосовой ввод использует `whisper.cpp` на сервере. При включённом `AI_ORDER_DRAFTS_ENABLED` бэкенд ищет `ffmpeg`, `whisper-cli` и `model.bin` в каталоге `WHISPER_DIRECTORY` (`/opt/almak-whisper` по умолчанию). Веб и Electron передают запись в `/api/ai/order-drafts/transcribe` и получают текст для редактирования. Сервер обрабатывает одну запись за раз и удаляет временные файлы после запроса. Сообщение в чат отправляет менеджер.
+
 Лимиты: 256 КиБ запроса, 10000 символов сообщения, 100 позиций, 10 запросов в минуту на пользователя, 3 параллельных запроса, таймаут 45 секунд. Невалидные/обрезанные ответы и изменение ручных полей отклоняются целиком. Все API ошибки содержат безопасные `code`, `message`, `requestId`.
 
 Контракт JSON Output: [документация DeepSeek](https://api-docs.deepseek.com/guides/json_mode/). Подробная инструкция для рабочего каталога находится в `../docs/ai-order-assistant-setup.md`.

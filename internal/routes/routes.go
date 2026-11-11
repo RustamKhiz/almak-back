@@ -66,6 +66,8 @@ func registerRoutes(
 		protected.POST("/order-drafts/:id/messages", middleware.RequirePermission(models.DraftsWrite), middleware.RequirePermission(models.AssistantUse), aiHandler.SendDraftMessage)
 
 		protected.POST("/ai/order-drafts/parse", middleware.RequirePermission(models.AssistantUse), aiHandler.Parse)
+		protected.GET("/ai/order-drafts/transcribe", middleware.RequirePermission(models.AssistantUse), aiHandler.TranscriptionStatus)
+		protected.POST("/ai/order-drafts/transcribe", middleware.RequirePermission(models.AssistantUse), aiHandler.Transcribe)
 		protected.POST("/orders", middleware.RequirePermission(models.OrdersWrite), orderHandler.CreateOrder)
 		protected.GET("/orders", middleware.RequirePermission(models.OrdersRead), orderHandler.GetOrders)
 		protected.GET("/orders/analytics/suppliers", middleware.RequirePermission(models.AnalyticsRead), orderHandler.GetSupplierStats)

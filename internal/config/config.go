@@ -23,6 +23,7 @@ type Config struct {
 	DeepSeekAPIKey       string
 	DeepSeekModel        string
 	DeepSeekBaseURL      string
+	WhisperDirectory     string
 }
 
 func LoadConfig() (Config, error) {
@@ -52,6 +53,7 @@ func LoadConfig() (Config, error) {
 		DeepSeekAPIKey:       os.Getenv("DEEPSEEK_API_KEY"),
 		DeepSeekModel:        getEnv("DEEPSEEK_MODEL", "deepseek-flash"),
 		DeepSeekBaseURL:      getEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+		WhisperDirectory:     getEnv("WHISPER_DIRECTORY", "/opt/almak-whisper"),
 	}
 
 	if err := validate(cfg); err != nil {
